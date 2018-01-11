@@ -87,19 +87,42 @@ class GuiHandler(object):
            
             time.sleep(0.01)
 
+    def init_transition_buttons(self, frame):
+        label_font = self.default_font.copy()
+        label_font.configure(weight='bold')
+        self.method_label = Tkinter.Label(frame, text="Transition Function: \n", font=label_font)
+        self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
 
+        self.button_2gamma = self.init_button_with_callback(self.select_transition_function,
+                                                            lambda x,y,gamma: (2-2*gamma)*x+2*gamma*y,
+                                                            '(2-2*gamma)*a + 2*gamma*u',
+                                                            frame)
+        self.button_1gamma = self.init_button_with_callback(self.select_transition_function,
+                                                            lambda x,y,gamma: (1-gamma)*x+gamma*y,
+                                                            '(1-gamma)*a + gamma*u',
+                                                            frame)
     def init_method_buttons(self, frame):
         label_font = self.default_font.copy()
         label_font.configure(weight='bold')
         self.method_label = Tkinter.Label(frame, text="Method: \n", font=label_font)
         self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
-        
-        self.button_full_auton = self.init_button_with_callback(self.select_assistance_method, 'autonomous', 'Fully Autonomous', frame)
-        self.button_direct_teleop =  self.init_button_with_callback(self.select_assistance_method, 'direct', 'Direct Teleop', frame)
-        self.button_shared_auton_1 = self.init_button_with_callback(self.select_assistance_method, 'shared_auton_always', 'Shared Auton Always On', frame)
-        self.button_shared_auton_2 = self.init_button_with_callback(self.select_assistance_method, 'shared_auton_prop', 'Shared Auton Proportional', frame)
-        self.button_blend = self.init_button_with_callback(self.select_assistance_method, 'blend', 'Blend', frame)
 
+        self.button_direct_teleop =  self.init_button_with_callback(self.select_assistance_method, 
+                                                                    ['direct', 0.0],
+                                                                    'Direct Teleop', 
+                                                                    frame)        
+        self.button_shared_auton_1 = self.init_button_with_callback(self.select_assistance_method, 
+                                                                    ['shared_auton_1', 0.33], 
+                                                                    'Shared Auton Lvl 1', 
+                                                                    frame)
+        self.button_shared_auton_2 = self.init_button_with_callback(self.select_assistance_method, 
+                                                                    ['shared_auton_2', 0.66],
+                                                                    'Shared Auton Lvl 2', 
+                                                                    frame)
+        self.button_full_auton = self.init_button_with_callback(self.select_assistance_method, 
+                                                                ['autonomous', 1.0],
+                                                                'Fully Autonomous', 
+                                                                frame)
 
     def init_ui_device_buttons(self, frame):
         label_font = self.default_font.copy()
@@ -108,12 +131,10 @@ class GuiHandler(object):
         self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
         
         self.button_mouse = self.init_button_with_callback(self.select_ui_device, 'mouse', 'Mouse', frame)
-        self.button_razer = self.init_button_with_callback(self.select_ui_device, 'hydra', 'Razer Hydra', frame)
         self.button_kinova = self.init_button_with_callback(self.select_ui_device, 'kinova', 'Kinova USB', frame)
 
-
-    def init_button_with_callback(self, func, arg, label, frame):
-        callback = partial(func, arg)
+    def init_button_with_callback(self, func, args, label, frame):
+        callback = partial(func, args)
         b = Tkinter.Button(frame, text=label, command=callback)
         b.grid(sticky=Tkinter.W+Tkinter.E)
         self.all_buttons[arg] = b
@@ -122,8 +143,13 @@ class GuiHandler(object):
 
         return b
 
-    def select_assistance_method(self, method):
-        self.method = method
+    def select_transition_function(self, transition_function):
+        self.transition_function = transition_function
+        self.color_buttons()
+
+    def select_assistance_method(self, args):
+        self.method = args[0]
+        self.gamma = args[1]
         #print 'method: ' + str(method)
         self.color_buttons()
 
@@ -143,7 +169,6 @@ class GuiHandler(object):
         self.quit = toggle_trial_button_callback(self.quit_button, self.quit)
         #self.add_return_to_queue()
 
-
     def add_return_to_queue(self):
         curr_selected = self.get_selected_options()
         #while not self.return_queue.empty():
@@ -158,6 +183,7 @@ class GuiHandler(object):
         to_ret['method'] = self.method
         to_ret['ui_device'] = self.ui_device
         to_ret['record'] = self.record_next_trial
+        to_ret['transition_function'] = partial(self.transition_function, gamma=self.gamma)
         return to_ret
 
     def color_buttons(self):
