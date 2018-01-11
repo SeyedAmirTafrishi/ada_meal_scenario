@@ -399,7 +399,15 @@ if __name__ == "__main__":
             try:
                 manip = robot.GetActiveManipulator()
                 action = BiteServing()
-                action.execute(manip, env, method=gui_return['method'], ui_device=gui_return['ui_device'], state_pub=state_pub, detection_sim=args.detection_sim, record_trial=gui_return['record'], file_directory=file_directory_user)
+                action.execute(manip, 
+                               env, 
+                               method=gui_return['method'], 
+                               ui_device=gui_return['ui_device'], 
+                               state_pub=state_pub, 
+                               detection_sim=args.detection_sim, 
+                               record_trial=gui_return['record'], 
+                               file_directory=file_directory_user,
+                               transition_function=gui_return['transition_function'])
             except ActionException, e:
                 logger.info('Failed to complete bite serving: %s' % str(e))
 

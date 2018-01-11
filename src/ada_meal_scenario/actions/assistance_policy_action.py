@@ -22,7 +22,8 @@ class AssistancePolicyAction(BypassableAction):
     def __init__(self, bypass=False):
         BypassableAction.__init__(self, 'ASSISTANCE_POLICY', bypass=bypass)
         
-    def _run(self, manip, objects, desired_ee_poses, ui_device, fix_magnitude_user_command=False, blend_only=False, filename_trajdata=None):
+    def _run(self, manip, objects, desired_ee_poses, ui_device, 
+             fix_magnitude_user_command=False, blend_only=False, filename_trajdata=None, transition_function=lambda x,y: x+y):
         robot = manip.GetRobot()
         env = robot.GetEnv()
 
@@ -33,7 +34,11 @@ class AssistancePolicyAction(BypassableAction):
 
         all_goals = [Goal(obj.GetTransform(), [desired_ee_pose]) for obj, desired_ee_pose in zip(objects, desired_ee_poses)]
         ada_handler = AdaHandler(env, robot, all_goals, objects, input_interface_name=ui_device, num_input_dofs=2, use_finger_mode=False)
-        ada_handler.execute_policy(simulate_user=False, blend_only=blend_only, fix_magnitude_user_command=fix_magnitude_user_command, traj_data_recording=traj_data_recording)
+        ada_handler.execute_policy(simulate_user=False, 
+                                   blend_only=blend_only, 
+                                   fix_magnitude_user_command=fix_magnitude_user_command, 
+                                   traj_data_recording=traj_data_recording, 
+                                   transition_function=transition_function)
         #ada_handler.execute_direct_teleop(simulate_user=False)
 
 

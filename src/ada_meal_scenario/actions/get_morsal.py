@@ -35,7 +35,7 @@ class GetMorsal(BypassableAction):
         BypassableAction.__init__(self, 'GetMorsal', bypass=bypass)
         
         
-    def _run(self, manip, method, ui_device, state_pub=None, filename_trajdata=None):
+    def _run(self, manip, method, ui_device, state_pub=None, filename_trajdata=None, transition_function=lambda x,y: x+y):
         """
         Execute a sequence of plans that pick up the morsal
         @param manip The manipulator
@@ -93,10 +93,21 @@ class GetMorsal(BypassableAction):
           else:
             fix_magnitude_user_command = False
           assistance_policy_action = AssistancePolicyAction(bypass=self.bypass)
-          assistance_policy_action.execute(manip, all_morsals, all_desired_ee_pose, ui_device, fix_magnitude_user_command=fix_magnitude_user_command, filename_trajdata=filename_trajdata)
+          assistance_policy_action.execute(manip, 
+                                           all_morsals, 
+                                           all_desired_ee_pose, 
+                                           ui_device, 
+                                           fix_magnitude_user_command=fix_magnitude_user_command, 
+                                           filename_trajdata=filename_trajdata,
+                                           transition_function=transition_function)
         elif method == 'blend':
           assistance_policy_action = AssistancePolicyAction(bypass=self.bypass)
-          assistance_policy_action.execute(manip, all_morsals, all_desired_ee_pose, ui_device, blend_only=True, filename_trajdata=filename_trajdata)
+          assistance_policy_action.execute(manip, 
+                                           all_morsals, 
+                                           all_desired_ee_pose, 
+                                           ui_device, 
+                                           blend_only=True, 
+                                           filename_trajdata=filename_trajdata)
         elif method == 'direct':
           direct_teleop_action = DirectTeleopAction(bypass=self.bypass)
           direct_teleop_action.execute(manip, ui_device, filename_trajdata=filename_trajdata)
@@ -106,7 +117,8 @@ class GetMorsal(BypassableAction):
               with prpy.viz.RenderPoses([desired_ee_pose], env):
 
                   #since we know we will soon go to stabbed, rank iks based on both stabbed and current
-                  ik_ranking_nominal_configs = [robot.arm.GetDOFValues(), numpy.array(robot.configurations.get_configuration('ada_meal_scenario_morselStabbedConfiguration')[1])]
+                  configuration = robot.configurations.get_configuration('ada_meal_scenario_morselStabbedConfiguration')[1]
+                  ik_ranking_nominal_configs = [robot.arm.GetDOFValues(), numpy.array(configuration)]
                   ik_ranker = MultipleNominalConfigurations(ik_ranking_nominal_configs)
                   path = robot.PlanToEndEffectorPose(desired_ee_pose, execute=True, ranker=ik_ranker)
 
@@ -225,11 +237,3 @@ def read_offsets_from_file(filename='morsal_offsets.txt', xoffset=0., yoffset=0.
 
   logger.info('read offsets: ' + str(xoffset) +', ' + str(yoffset))
   return xoffset,yoffset
-
-
-
-
-
-
-  
-
