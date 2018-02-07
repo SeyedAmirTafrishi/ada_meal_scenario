@@ -11,14 +11,17 @@ morsal_base_name = 'morsal'
 def morsal_index_to_name(ind):
     return morsal_base_name + str(ind)
 
-class DetectMorsal(BypassableAction):
+delta_base_name = 'delta'
+def delta_index_to_name(ind):
+    return delta_base_name + str(ind)
 
+
+class DetectMorsal(BypassableAction):
     def __init__(self, bypass=False):
         BypassableAction.__init__(self, 'DetectBite', bypass=bypass)
 
 
     def _run(self, robot, timeout=None):
-
         self.remove_morsals_next_indices(robot.GetEnv(), 0)
         
         m_detector = MorsalDetector(robot)
@@ -36,10 +39,12 @@ class DetectMorsal(BypassableAction):
         #filter bad detections
         logger.info('Getting morsals in env')
         all_morsals = GetAllMorsalsInEnv(env)
+        all_deltas = GetAllMorsalsInEnv(env, name_func=delta_index_to_name)
         #inds_to_filter = FilterMorsalsOnTable(env.GetKinBody('table'), all_morsals)
         #self.filter_morsal_inds(env, inds_to_filter, all_morsals)
         logger.info('projecting morsal on table')
         ProjectMorsalsOnTable(env.GetKinBody('table'), all_morsals)
+        ProjectDeltasToMorsals(env.GetKinBody('table'), all_deltas, all_morsals)
 
         logger.info('stopping detector')
         m_detector.stop()
@@ -48,7 +53,6 @@ class DetectMorsal(BypassableAction):
             raise ActionException(self, 'Failed to detect any morsals.')
 
     def _bypass(self, robot, num_morsals=3):
-
         m_detector = MorsalDetector(robot)
         for i in range(num_morsals):
             # Here we want to place the kinbody
@@ -68,13 +72,19 @@ class DetectMorsal(BypassableAction):
             #morsal_in_world[2,3] -= 0.17
             morsal_in_camera = numpy.dot(numpy.linalg.inv(camera_in_world), morsal_in_world)
 
-            m_detector.add_morsal(morsal_in_camera, morsal_index_to_name(i))
+            m_detector.add_morsal(morsal_in_camera, 
+                                  morsal_index_to_name(i),
+                                  delta_index_to_name(i))
 
         env = robot.GetEnv()
         all_morsals = GetAllMorsalsInEnv(env)
+        all_deltas = GetAllMorsalsInEnv(env, name_func=delta_index_to_name)
         num_morsals_before_filter = len(all_morsals)
         
         ProjectMorsalsOnTable(env.GetKinBody('table'), all_morsals)
+
+        # MAP THE DELTAS TO THE PRESTAB POSITION
+        ProjectDeltasToMorsals(env.GetKinBody('table'), all_deltas, all_morsals)
         inds_to_filter = FilterMorsalsOnTable(env.GetKinBody('table'), all_morsals)
         self.filter_morsal_inds(env, inds_to_filter, all_morsals)
 
@@ -99,7 +109,6 @@ class DetectMorsal(BypassableAction):
         for ind,morsal in enumerate(all_morsals):
             morsal.SetName(morsal_index_to_name(ind))
         
-    
     def remove_morsals_next_indices(self, env, start_ind, end_ind=0):
         """ Removes the OpenRAVE kin bodies for all morsals with index at
         or greater than the start index
@@ -119,9 +128,7 @@ class DetectMorsal(BypassableAction):
             ind+=1
             morsal_body = env.GetKinBody(morsal_index_to_name(ind))
 
-
-class MorsalDetector(object):
-    
+class MorsalDetector(object):    
     def __init__(self, robot):
         self.env = robot.GetEnv()
         self.robot = robot
@@ -149,7 +156,7 @@ class MorsalDetector(object):
         self.sub.unregister() # unsubscribe
         self.sub = None
 
-    def add_morsal(self, morsal_in_camera, morsal_name=None):
+    def add_morsal(self, morsal_in_camera, morsal_name=None, delta_name=None):
         camera_in_world = self.robot.GetLink('Camera_Depth_Frame').GetTransform()
         morsal_in_world = numpy.dot(camera_in_world, morsal_in_camera)
         import openravepy
@@ -158,6 +165,7 @@ class MorsalDetector(object):
         
         if morsal_name is None:
             morsal_name = 'morsal'
+            delta_name = 'delta'
         
         object_base_path = find_in_workspaces(
             search_dirs=['share'],
@@ -165,19 +173,23 @@ class MorsalDetector(object):
             path='data',
             first_match_only=True)[0]
         ball_path = os.path.join(object_base_path, 'objects', 'smallsphere.kinbody.xml')
+        delta_path = os.path.join(object_base_path, 'objects', 'mediumsphere.kinbody.xml')
         if self.env.GetKinBody(morsal_name) is None:
             with self.env:
                 morsal = self.env.ReadKinBodyURI(ball_path)
+                delta = self.env.ReadKinBodyURI(delta_path)
                 morsal.SetName(morsal_name)
+                delta.SetName(delta_name)
                 self.env.Add(morsal)
+                self.env.Add(delta)
                 morsal.Enable(False)
+                delta.Enable(False)
         else:
             morsal = self.env.GetKinBody(morsal_name)
+            delta = self.env.GetKinBody(delta_name)
         morsal.SetTransform(morsal_in_world)
+        delta.SetTransform(morsal_in_world)
 
-
-
-        
     def _callback(self, msg):
         logger.info('Received detection')
         obj =  json.loads(msg.data)
@@ -204,7 +216,6 @@ class MorsalDetector(object):
             next_hypoths.append(new_hypoth_pos)
             next_hypoth_counts.append(old_count+1)
           
-
         self.morsal_pos_hypotheses = next_hypoths
         self.morsal_pos_hypotheses_counts = next_hypoth_counts
 
@@ -218,10 +229,11 @@ class MorsalDetector(object):
               logger.info('adding morsal at pos ' + str(hypoth_pos))
               morsal_in_camera = numpy.eye(4)
               morsal_in_camera[:3,3] = hypoth_pos
-              self.add_morsal(morsal_in_camera, morsal_index_to_name(morsal_index))
+              self.add_morsal(morsal_in_camera, 
+                              morsal_index_to_name(morsal_index),
+                              delta_index_to_name(morsal_index))
               morsal_index += 1
         
-
 def ProjectMorsalsOnTable(table, morsals, dist_above_table=0.03):
     """ Sets all morsals to be the specified distance above the table
 
@@ -235,7 +247,13 @@ def ProjectMorsalsOnTable(table, morsals, dist_above_table=0.03):
         morsal_transform[2,3] -= dist - dist_above_table
         morsal.SetTransform(morsal_transform)
     
-
+def ProjectDeltasToMorsals(table, deltas, morsals):
+    for morsal, delta in zip(morsals, deltas):
+        delta_transform = delta.GetTransform()
+        morsal_transform = morsal.GetTransform()
+        delta_transform[2,3] = morsal_transform[2,3] + 0.06
+        delta.SetTransform(delta_transform)
+    
 def FilterMorsalsOnTable(table, morsals, thresh_dist_below_table=0.0, thresh_dist_above_table=0.1):
     """ Detects all morsals either below the table by more then the specified amount, or above
     by more then the specified amount, and returns their indices
@@ -276,7 +294,7 @@ def GetAllDistsTableToObjects(table, objects):
     return dists
 
 
-def GetAllMorsalsInEnv(env, start_ind=0, end_ind=0):
+def GetAllMorsalsInEnv(env, start_ind=0, end_ind=0, name_func=morsal_index_to_name):
     """ Tries to get all the morsals in the environment, based on naming
     Assumes the function morsal_index_to_name was used to name all morsals
     And all morsal numbers are consecutive
@@ -289,10 +307,10 @@ def GetAllMorsalsInEnv(env, start_ind=0, end_ind=0):
     
     all_morsals = []
     ind = start_ind
-    morsal_body = env.GetKinBody(morsal_index_to_name(ind))
+    morsal_body = env.GetKinBody(name_func(ind))
     while morsal_body or ind < end_ind:
         if morsal_body:
             all_morsals.append(morsal_body)
         ind+=1
-        morsal_body = env.GetKinBody(morsal_index_to_name(ind))
+        morsal_body = env.GetKinBody(name_func(ind))
     return all_morsals

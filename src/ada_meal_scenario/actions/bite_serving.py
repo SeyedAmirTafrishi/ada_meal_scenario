@@ -31,7 +31,7 @@ class BiteServing(BypassableAction):
           if file_directory is None:
             file_directory = rospkg.RosPack().get_path('ada_meal_scenario') + '/trajectory_data'
 
-          rosbag_topic_names = ['/ada_tasks', '/hydra_calib', '/ada/joy', '/perception/morsel_detection', '/joint_states']
+          rosbag_topic_names = ['/ada_tasks', '/ada/joy', '/perception/morsel_detection', '/joint_states', '/myo_raw/myo_arm', '/myo_raw/myo_emg', '/myo_raw/myo_imu', '/myo_raw/myo_ori', '/myo_raw/myo_vibrate']
           filename_trajdata, filename_bag = get_next_filename_pair(file_directory=file_directory)
 
           rosbag_process = start_rosbag(rosbag_topic_names, filename=filename_bag)

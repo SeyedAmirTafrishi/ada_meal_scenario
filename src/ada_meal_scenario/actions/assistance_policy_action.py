@@ -15,9 +15,6 @@ from ada_teleoperation.DataRecordingUtils import TrajectoryData
 #from prpy.exceptions import TrajectoryNotExecutable
 #import time
 
-
-
-
 class AssistancePolicyAction(BypassableAction):
     def __init__(self, bypass=False):
         BypassableAction.__init__(self, 'ASSISTANCE_POLICY', bypass=bypass)
