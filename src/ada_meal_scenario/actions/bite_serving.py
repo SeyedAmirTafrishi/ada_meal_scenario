@@ -5,6 +5,7 @@ from detect_morsal import DetectMorsal
 from get_morsal import GetMorsal
 from std_msgs.msg import String
 import time
+import os.path
 
 
 from ada_teleoperation.DataRecordingUtils import *
@@ -13,6 +14,17 @@ import logging
 logger = logging.getLogger('ada_meal_scenario')
 
 from direct_teleop_action import DirectTeleopAction
+
+class RemoteRecorder:
+    def __init__(self, topic, filename):
+        self.filename = filename
+        self.pub = rospy.Publisher(topic + '/named', String, queue_size=5)
+        
+    def start(self):
+        self.pub.publish(self.filename + ":start")
+
+    def stop(self):
+        self.pub.publish(self.filename + ":stop")
 
 class BiteServing(BypassableAction):
 
@@ -36,6 +48,9 @@ class BiteServing(BypassableAction):
 
           rosbag_process = start_rosbag(rosbag_topic_names, filename=filename_bag)
           state_pub.publish("recording data to " + str(filename_bag))
+          
+          remote_recorder = RemoteRecorder('/rosbag_remote/ada_desktop/', os.path.splitext(filename_trajdata)[0])
+          remote_recorder.start()
         else:
           filename_trajdata = None
 
@@ -78,10 +93,12 @@ class BiteServing(BypassableAction):
           state_pub.publish("Finished bite serving")
           if record_trial:
             stop_rosbag(rosbag_process)
+            remote_recorder.stop()
 
         except ActionException, e:
           state_pub.publish("Failed to run bite serving")
           if record_trial:
             stop_rosbag(rosbag_process)
+            remote_recorder.stop()
           raise
 
