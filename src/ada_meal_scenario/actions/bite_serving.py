@@ -49,7 +49,8 @@ class BiteServing(BypassableAction):
           rosbag_process = start_rosbag(rosbag_topic_names, filename=filename_bag)
           state_pub.publish("recording data to " + str(filename_bag))
           
-          remote_recorder = RemoteRecorder('/rosbag_remote/ada_desktop/', os.path.splitext(filename_trajdata)[0])
+          remote_recorder = RemoteRecorder('/rosbag_remote/ada_desktop/', 
+                                           os.path.splitext(os.path.relpath(filename_trajdata, os.path.join(file_directory, '..')))[0].replace('/', '_'))
           remote_recorder.start()
         else:
           filename_trajdata = None
