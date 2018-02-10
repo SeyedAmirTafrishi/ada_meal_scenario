@@ -3,6 +3,8 @@ from bypassable_action import ActionException, BypassableAction
 from prpy.planning.base import PlanningError
 import time
 import openravepy
+import os.path
+import yaml
 
 from prpy.ik_ranking import MultipleNominalConfigurations
 
@@ -61,6 +63,12 @@ class GetMorsal(BypassableAction):
         #morsal = all_morsals[0]
         if all_morsals is None:
           raise ActionException(self, 'Failed to find morsal in environment.')
+
+        # Log the morsels to file
+        if filename_trajdata is not None:
+            filename_morsels = os.path.splitext(filename_trajdata)[0] + '_morsels.yaml'
+            with open(filename_morsels, 'wb') as f:
+                yaml.dump({ m.GetName(): m.GetTransform.tolist() for m in all_morsals }, f)
 
         fork = env.GetKinBody('fork')
         #if True: #fork is None:
