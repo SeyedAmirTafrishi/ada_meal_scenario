@@ -14,17 +14,37 @@ import logging
 logger = logging.getLogger('ada_meal_scenario')
 
 from direct_teleop_action import DirectTeleopAction
+from zed_recorder.srv import ZedRecord, ZedRecordRequest
 
 class RemoteRecorder:
     def __init__(self, topic, filename):
-        self.filename = filename
-        self.pub = rospy.Publisher(topic + '/named', String, queue_size=5)
-        
+        self.filename = filename + '.svo'
+        try:
+            rospy.wait_for_service(topic, timeout=1.)
+            self.service = rospy.ServiceProxy(topic, ZedRecord)
+        except Exception as ex:
+            logger.warn('Failed to connect to remote ZED recorder!')
+            self.service = None
+         
     def start(self):
-        self.pub.publish(self.filename + ":start")
+        logger.info('Starting remote ZED recorder to {}'.format(self.filename))
+        if self.service is not None:
+            try:
+                res = self.service(command=ZedRecordRequest.START, filename=self.filename, fps=0)
+                if not res.ok:
+                    logger.warn('Failed to start remote ZED recorder: {}'.format(res.message))
+            except Exception as ex:
+                logger.warn('Exception when starting remote ZED recorder: {}'.format(str(e)))
 
     def stop(self):
-        self.pub.publish(self.filename + ":stop")
+        if self.service is not None:
+            try:
+                res = self.service(command=ZedRecordRequest.STOP)
+                if not res.ok:
+                    logger.warn('Failed to stop remote ZED recorder: {}'.format(res.message))
+            except Exception as ex:
+                logger.warn('Exception when stopping remote ZED recorder: {}'.format(str(e)))
+                
 
 class BiteServing(BypassableAction):
 
@@ -49,7 +69,7 @@ class BiteServing(BypassableAction):
           rosbag_process = start_rosbag(rosbag_topic_names, filename=filename_bag)
           state_pub.publish("recording data to " + str(filename_bag))
           
-          remote_recorder = RemoteRecorder('/rosbag_remote/ada_desktop/', 
+          remote_recorder = RemoteRecorder('/zed_recorder', 
                                            os.path.splitext(os.path.relpath(filename_trajdata, os.path.join(file_directory, '..')))[0].replace('/', '_'))
           remote_recorder.start()
         else:

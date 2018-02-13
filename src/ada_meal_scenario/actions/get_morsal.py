@@ -68,7 +68,7 @@ class GetMorsal(BypassableAction):
         if filename_trajdata is not None:
             filename_morsels = os.path.splitext(filename_trajdata)[0] + '_morsels.yaml'
             with open(filename_morsels, 'wb') as f:
-                yaml.dump({ m.GetName(): m.GetTransform.tolist() for m in all_morsals }, f)
+                yaml.dump({ m.GetName(): m.GetTransform().tolist() for m in all_morsals }, f)
 
         fork = env.GetKinBody('fork')
         #if True: #fork is None:
