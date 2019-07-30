@@ -407,7 +407,8 @@ if __name__ == "__main__":
                                detection_sim=args.detection_sim, 
                                record_trial=gui_return['record'], 
                                file_directory=file_directory_user,
-                               transition_function=gui_return['transition_function'])
+                               transition_function=gui_return['transition_function'],
+                               prediction_option= gui_return['prediction_option'])
             except ActionException, e:
                 logger.info('Failed to complete bite serving: %s' % str(e))
 
