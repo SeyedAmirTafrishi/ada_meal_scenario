@@ -155,10 +155,10 @@ def setup(sim=False, viewer=None, debug=True):
     robot.arm.hand.CloseHand(1.2)
 
     logger.info('Grabbing tool and fork')
-    robot.Grab(tool, grablink=grab_link, linkstoignore=finger_link_inds)
-    robot.Grab(fork, grablink=grab_link, linkstoignore=finger_link_inds)
-    robot.Grab(tool_box, grablink=grab_link, linkstoignore=finger_link_inds)
-    robot.Grab(fork_box, grablink=grab_link, linkstoignore=finger_link_inds)
+    robot.Grab(tool, finger_link_inds)
+    robot.Grab(fork, finger_link_inds)
+    robot.Grab(tool_box, finger_link_inds)
+    robot.Grab(fork_box, finger_link_inds)
 
 #    print 'grab link: ' + str(grab_link)
 #    print 'links to ignore: ' + str(finger_link_inds)
