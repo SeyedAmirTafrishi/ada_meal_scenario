@@ -20,7 +20,7 @@ class AssistancePolicyAction(BypassableAction):
         BypassableAction.__init__(self, 'ASSISTANCE_POLICY', bypass=bypass)
         
     def _run(self, manip, objects, desired_ee_poses, ui_device, 
-             fix_magnitude_user_command=False, blend_only=False, filename_trajdata=None, transition_function=lambda x,y: x+y):
+             fix_magnitude_user_command=False, blend_only=False, filename_trajdata=None, transition_function=lambda x,y: x+y,prediction_option= "Goal"):
         robot = manip.GetRobot()
         env = robot.GetEnv()
 

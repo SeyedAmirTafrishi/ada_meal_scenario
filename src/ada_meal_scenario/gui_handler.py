@@ -68,8 +68,8 @@ class GuiHandler(object):
         self.init_transition_buttons(self.transition_frame)
 
         self.prediction_option = Tkinter.Frame(self.master)
-        self.prediction_option.grid(row=3, column=2, sticky=sticky)
-        self.init_transition_buttons(self.transition_frame)
+        self.prediction_option.grid(row=1, column=3, sticky=sticky)
+        self.init_predict_buttons(self.prediction_option)
 
 
         self.start_frame = Tkinter.Frame(self.master)
