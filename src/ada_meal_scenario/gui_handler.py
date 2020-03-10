@@ -62,6 +62,10 @@ class GuiHandler(object):
         self.UI_frame = Tkinter.Frame(self.master)
         self.UI_frame.grid(row=0, column=2, sticky=sticky)
         self.init_ui_device_buttons(self.UI_frame)
+        
+        self.gaze_frame = Tkinter.Frame(self.master)
+        self.gaze_frame.grid(row=0, column=3, sticky=sticky)
+        self.init_gaze_buttons(self.gaze_frame)
 
         self.transition_frame = Tkinter.Frame(self.master)
         self.transition_frame.grid(row=1, column=2, sticky=sticky)
@@ -172,6 +176,19 @@ class GuiHandler(object):
         self.button_mouse = self.init_button_with_callback(self.select_ui_device, 'mouse', 'Mouse', frame)
         self.button_kinova = self.init_button_with_callback(self.select_ui_device, 'kinova', 'Kinova USB', frame)
 
+    def init_gaze_buttons(self, frame):
+        label_font = self.default_font.copy()
+        label_font.configure(weight='bold')
+        
+        self.gaze_label = Tkinter.Label(frame, text="Gaze capture\n", font=label_font)
+        self.gaze_label.grid(sticky=Tkinter.W+Tkinter.E)
+        
+        self.button_gaze_none = self.init_button_with_callback(self.select_gaze, 'none', 'None', frame)
+        self.button_gaze_pupil = self.init_button_with_callback(self.select_gaze, 'pupil', 'Pupil', frame)
+        self.button_gaze_tobii = self.init_button_with_callback(self.select_gaze, 'tobii', 'Tobii', frame)
+        self.gaze_option = 'none'
+
+
     def init_button_with_callback(self, func, args, label, frame):
         callback = partial(func, args)
         b = Tkinter.Button(frame, text=label, command=callback)
@@ -197,6 +214,11 @@ class GuiHandler(object):
         self.ui_device = ui_device
         print 'ui: ' + str(self.ui_device), type(self.ui_device)
         self.color_buttons()
+        
+    def select_gaze(self, gaze_option):
+        self.gaze_option = gaze_option
+        print('gaze: ' + str(gaze_option))
+        self.color_buttons()
 
     def start_button_callback(self):
         self.start_next_trial = toggle_trial_button_callback(self.start_button, self.start_next_trial)
@@ -220,6 +242,7 @@ class GuiHandler(object):
         to_ret['start'] = self.start_next_trial
         to_ret['quit'] = self.quit
         to_ret['method'] = self.method
+        to_ret['gaze_option'] = self.gaze_option
         to_ret['ui_device'] = self.ui_device
         to_ret['record'] = self.record_next_trial
         to_ret['transition_function'] = partial(self.transition_function, gamma=self.gamma)
@@ -231,6 +254,7 @@ class GuiHandler(object):
             configure_button_not_selected(b)
         #set the selected items
         configure_button_selected(self.all_buttons[self.ui_device])
+        configure_button_selected(self.all_buttons[self.gaze_option])
 
         print self.all_buttons.keys()
         configure_button_selected(self.all_buttons[str([self.method, self.gamma])])

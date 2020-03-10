@@ -385,7 +385,7 @@ if __name__ == "__main__":
             continue
 
         gui_return = gui_queue.get()
-
+        print(gui_return)
         if gui_return['quit']:
             break
         elif gui_return['start']:
