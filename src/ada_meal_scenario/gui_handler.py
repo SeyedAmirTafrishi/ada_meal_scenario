@@ -3,6 +3,7 @@
 
 import Tkinter
 import tkFont
+import ttk
 from functools import partial
 
 from threading import Lock
@@ -187,6 +188,45 @@ class GuiHandler(object):
         self.button_gaze_pupil = self.init_button_with_callback(self.select_gaze, 'pupil', 'Pupil', frame)
         self.button_gaze_tobii = self.init_button_with_callback(self.select_gaze, 'tobii', 'Tobii', frame)
         self.gaze_option = 'none'
+        
+        # Add info for connection
+        self.gaze_conn_info_elems = {'none': []}
+        
+        self.label_pupil_endpoint = Tkinter.Label(frame, text="Pupil endpoint")
+        self.label_pupil_endpoint.grid(row=1, column=1, sticky=Tkinter.W)
+        self.value_pupil_endpoint = Tkinter.StringVar()
+        self.entry_pupil_endpoint = Tkinter.Entry(frame, textvariable=self.value_pupil_endpoint)
+        self.entry_pupil_endpoint.grid(row=2, column=1, sticky=Tkinter.W)
+        self.gaze_conn_info_elems['pupil'] = [self.entry_pupil_endpoint]
+        self.entry_pupil_endpoint['state'] = 'disabled'
+        self.value_pupil_endpoint.set("tcp://127.0.0.1:50020")
+        
+        
+        self.label_tobii_endpoint = Tkinter.Label(frame, text="Tobii endpoint")
+        self.label_tobii_endpoint.grid(row=3, column=1, sticky=Tkinter.W)
+        self.value_tobii_endpoint = Tkinter.StringVar()
+        self.entry_tobii_endpoint = Tkinter.Entry(frame, textvariable=self.value_tobii_endpoint)
+        self.entry_tobii_endpoint.grid(row=4, column=1, sticky=Tkinter.W)
+        self.entry_tobii_endpoint['state'] = 'disabled'
+        self.value_tobii_endpoint.set("192.168.1.100")
+        
+        self.entry_tobii_endpoint.bind("<FocusOut>", self.update_tobii_endpoint)
+        
+        self.label_tobii_project = Tkinter.Label(frame, text='Project ID')
+        self.label_tobii_project.grid(row=5, column=1, sticky=Tkinter.W)
+        self.combobox_tobii_project = ttk.Combobox(frame)
+        self.combobox_tobii_project.grid(row=6, column=1, sticky=Tkinter.W)
+        self.combobox_tobii_project['state'] = 'disabled'
+        
+        
+        self.gaze_conn_info_elems['tobii'] = [self.entry_tobii_endpoint, self.combobox_tobii_project]
+    
+    def update_tobii_endpoint(self, evt):
+        print('Caleld update')
+        if self.entry_tobii_endpoint['state'] == 'normal':
+            # try to connect with Tobii to list projects.....
+            self.combobox_tobii_project['state'] = 'normal'
+            self.combobox_tobii_project['values'] = ['a', 'b'] 
 
 
     def init_button_with_callback(self, func, args, label, frame):
@@ -219,6 +259,11 @@ class GuiHandler(object):
         self.gaze_option = gaze_option
         print('gaze: ' + str(gaze_option))
         self.color_buttons()
+        
+        for k in self.gaze_conn_info_elems.keys():
+            state = "normal" if k == gaze_option else "disabled"
+            for elem in self.gaze_conn_info_elems[k]:
+                elem['state'] = state
 
     def start_button_callback(self):
         self.start_next_trial = toggle_trial_button_callback(self.start_button, self.start_next_trial)
@@ -255,6 +300,8 @@ class GuiHandler(object):
         #set the selected items
         configure_button_selected(self.all_buttons[self.ui_device])
         configure_button_selected(self.all_buttons[self.gaze_option])
+        
+        
 
         print self.all_buttons.keys()
         configure_button_selected(self.all_buttons[str([self.method, self.gamma])])
