@@ -14,7 +14,11 @@ import logging
 logger = logging.getLogger('ada_meal_scenario')
 
 from direct_teleop_action import DirectTeleopAction
-from zed_recorder.srv import ZedRecord, ZedRecordRequest
+
+try:
+    from zed_recorder.srv import ZedRecord, ZedRecordRequest
+except ImportError:
+    logger.warn('No ZED package found; ZED videos will NOT be recorded. Install the zed_ros_recording package to fix this error.')
 
 class RemoteRecorder:
     def __init__(self, topic, filename):
