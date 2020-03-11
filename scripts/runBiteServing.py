@@ -318,7 +318,7 @@ if __name__ == "__main__":
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
 
-    gui_get_event, gui_trial_starting_event, gui_queue, gui_process = start_gui_process()
+    gui_get_event, gui_trial_starting_event, gui_queue, gui_process = start_gui_process(rospy)
 
     #slow robot down
     #save old limits
@@ -377,7 +377,7 @@ if __name__ == "__main__":
     else:
         user_number, file_directory_user = get_next_available_user_ind(file_directory=file_directory, user_folder_base=user_folder_base_default)
 
-    while True:
+    while not rospy.is_shutdown():
         empty_queue(gui_queue)
         gui_get_event.set()
         while gui_queue.empty():
@@ -385,7 +385,6 @@ if __name__ == "__main__":
             continue
 
         gui_return = gui_queue.get()
-        print(gui_return)
         if gui_return['quit']:
             break
         elif gui_return['start']:
@@ -412,6 +411,10 @@ if __name__ == "__main__":
                 logger.info('Failed to complete bite serving: %s' % str(e))
 
                 ResetTrial(robot)
+                
+            except Exception as e:
+                logger.error("Other error detected: {}".format(e))
+                break
 
             finally:
                 if pupil_capture:

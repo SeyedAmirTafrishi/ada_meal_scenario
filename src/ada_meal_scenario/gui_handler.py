@@ -11,6 +11,8 @@ import multiprocessing
 from Queue import Empty
 from multiprocessing import Queue
 
+import gaze_interface_selector
+
 default_bg_color = None
 
 # a is the robot action
@@ -103,7 +105,8 @@ class GuiHandler(object):
     def mainloop(self):
         #self.master.mainloop()
         import time
-        while True:
+        self._running = True
+        while self._running:
             self.master.update_idletasks()
             self.master.update()
 
@@ -117,6 +120,9 @@ class GuiHandler(object):
                 self.trial_starting_event.clear()
            
             time.sleep(0.01)
+
+    def stop(self):
+        self._running = False
 
     def init_transition_buttons(self, frame):
         label_font = self.default_font.copy()
@@ -182,57 +188,22 @@ class GuiHandler(object):
         label_font.configure(weight='bold')
         
         self.gaze_label = Tkinter.Label(frame, text="Gaze capture\n", font=label_font)
-        self.gaze_label.grid(sticky=Tkinter.W+Tkinter.E)
+        self.gaze_label.grid(columnspan=2, sticky=Tkinter.W+Tkinter.E)
         
-        self.button_gaze_none = self.init_button_with_callback(self.select_gaze, 'none', 'None', frame)
-        self.button_gaze_pupil = self.init_button_with_callback(self.select_gaze, 'pupil', 'Pupil', frame)
-        self.button_gaze_tobii = self.init_button_with_callback(self.select_gaze, 'tobii', 'Tobii', frame)
+        self.button_gaze_none = self.init_button_with_callback(self.select_gaze, 'none', 'None', frame, sticky=Tkinter.N+Tkinter.W+Tkinter.E)
+        self.button_gaze_pupil = self.init_button_with_callback(self.select_gaze, 'pupil', 'Pupil', frame, sticky=Tkinter.N+Tkinter.W+Tkinter.E)
+        self.button_gaze_tobii = self.init_button_with_callback(self.select_gaze, 'tobii', 'Tobii', frame, sticky=Tkinter.N+Tkinter.W+Tkinter.E)
         self.gaze_option = 'none'
         
-        # Add info for connection
-        self.gaze_conn_info_elems = {'none': []}
         
-        self.label_pupil_endpoint = Tkinter.Label(frame, text="Pupil endpoint")
-        self.label_pupil_endpoint.grid(row=1, column=1, sticky=Tkinter.W)
-        self.value_pupil_endpoint = Tkinter.StringVar()
-        self.entry_pupil_endpoint = Tkinter.Entry(frame, textvariable=self.value_pupil_endpoint)
-        self.entry_pupil_endpoint.grid(row=2, column=1, sticky=Tkinter.W)
-        self.gaze_conn_info_elems['pupil'] = [self.entry_pupil_endpoint]
-        self.entry_pupil_endpoint['state'] = 'disabled'
-        self.value_pupil_endpoint.set("tcp://127.0.0.1:50020")
+        self.gaze_selector = gaze_interface_selector.GazeInterfaceSelector(frame, self.default_font)
         
-        
-        self.label_tobii_endpoint = Tkinter.Label(frame, text="Tobii endpoint")
-        self.label_tobii_endpoint.grid(row=3, column=1, sticky=Tkinter.W)
-        self.value_tobii_endpoint = Tkinter.StringVar()
-        self.entry_tobii_endpoint = Tkinter.Entry(frame, textvariable=self.value_tobii_endpoint)
-        self.entry_tobii_endpoint.grid(row=4, column=1, sticky=Tkinter.W)
-        self.entry_tobii_endpoint['state'] = 'disabled'
-        self.value_tobii_endpoint.set("192.168.1.100")
-        
-        self.entry_tobii_endpoint.bind("<FocusOut>", self.update_tobii_endpoint)
-        
-        self.label_tobii_project = Tkinter.Label(frame, text='Project ID')
-        self.label_tobii_project.grid(row=5, column=1, sticky=Tkinter.W)
-        self.combobox_tobii_project = ttk.Combobox(frame)
-        self.combobox_tobii_project.grid(row=6, column=1, sticky=Tkinter.W)
-        self.combobox_tobii_project['state'] = 'disabled'
-        
-        
-        self.gaze_conn_info_elems['tobii'] = [self.entry_tobii_endpoint, self.combobox_tobii_project]
-    
-    def update_tobii_endpoint(self, evt):
-        print('Caleld update')
-        if self.entry_tobii_endpoint['state'] == 'normal':
-            # try to connect with Tobii to list projects.....
-            self.combobox_tobii_project['state'] = 'normal'
-            self.combobox_tobii_project['values'] = ['a', 'b'] 
 
 
-    def init_button_with_callback(self, func, args, label, frame):
+    def init_button_with_callback(self, func, args, label, frame, sticky=Tkinter.W+Tkinter.E):
         callback = partial(func, args)
         b = Tkinter.Button(frame, text=label, command=callback)
-        b.grid(sticky=Tkinter.W+Tkinter.E)
+        b.grid(sticky=sticky)
         self.all_buttons[str(args)] = b
 
         #b.configure(state = "normal", relief="raised")
@@ -257,13 +228,8 @@ class GuiHandler(object):
         
     def select_gaze(self, gaze_option):
         self.gaze_option = gaze_option
-        print('gaze: ' + str(gaze_option))
         self.color_buttons()
-        
-        for k in self.gaze_conn_info_elems.keys():
-            state = "normal" if k == gaze_option else "disabled"
-            for elem in self.gaze_conn_info_elems[k]:
-                elem['state'] = state
+        self.gaze_selector.select_gaze(gaze_option)
 
     def start_button_callback(self):
         self.start_next_trial = toggle_trial_button_callback(self.start_button, self.start_next_trial)
@@ -324,20 +290,19 @@ def configure_button_not_selected(button):
     button.configure(bg=default_bg_color, activebackground="white")
 
 
-def create_gui(get_gui_state_event, trial_starting_event, data_queue):
+
+def create_gui(get_gui_state_event, trial_starting_event, data_queue, shutdown_manager):
     gui = GuiHandler(get_gui_state_event, trial_starting_event, data_queue)
-    import signal
-    import sys
-    signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit())
+    shutdown_manager.on_shutdown(lambda: gui.stop())
 
     gui.mainloop()
     
 
-def start_gui_process():
+def start_gui_process(shutdown_manager=None):
     get_gui_state_event = multiprocessing.Event()
     trial_starting_event = multiprocessing.Event()
     data_queue = multiprocessing.Queue()
-    p = multiprocessing.Process(target=create_gui, args=(get_gui_state_event, trial_starting_event, data_queue,))
+    p = multiprocessing.Process(target=create_gui, args=(get_gui_state_event, trial_starting_event, data_queue, shutdown_manager,))
     p.daemon = True
     p.start()
 
