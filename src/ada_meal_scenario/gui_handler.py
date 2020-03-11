@@ -67,7 +67,7 @@ class GuiHandler(object):
         self.init_ui_device_buttons(self.UI_frame)
         
         self.gaze_frame = Tkinter.Frame(self.master)
-        self.gaze_frame.grid(row=0, column=3, sticky=sticky)
+        self.gaze_frame.grid(row=0, column=3, rowspan=2, sticky=sticky)
         self.init_gaze_buttons(self.gaze_frame)
 
         self.transition_frame = Tkinter.Frame(self.master)
