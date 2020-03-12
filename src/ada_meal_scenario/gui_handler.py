@@ -227,9 +227,9 @@ class GuiHandler(object):
         self.color_buttons()
         
     def select_gaze(self, gaze_option):
+        self.gaze_selector.select_gaze(gaze_option, self.gaze_option)
         self.gaze_option = gaze_option
         self.color_buttons()
-        self.gaze_selector.select_gaze(gaze_option)
 
     def start_button_callback(self):
         self.start_next_trial = toggle_trial_button_callback(self.start_button, self.start_next_trial)
