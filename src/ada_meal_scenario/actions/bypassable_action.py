@@ -1,3 +1,4 @@
+# interface for high level actions for ada_meal_scenario
 
 class ActionException(Exception):
     def __init__(self, action, message):

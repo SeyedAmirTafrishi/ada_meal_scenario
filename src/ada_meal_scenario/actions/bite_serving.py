@@ -1,10 +1,9 @@
-import rospy
 from bypassable_action import BypassableAction, ActionException
-from trajectory_actions import LookAtFace, LookAtPlate, Serve
-from detect_morsal import DetectMorsal
-from get_morsal import GetMorsal
+from trajectory_actions import LookAtPlate, Serve
+from detect_morsel import DetectMorsel
+from get_morsel import GetMorsel
+from direct_teleop_action import DirectTeleopAction
 from std_msgs.msg import String
-import time
 import os.path
 
 
@@ -13,7 +12,6 @@ from ada_teleoperation.DataRecordingUtils import *
 import logging
 logger = logging.getLogger('ada_meal_scenario')
 
-from direct_teleop_action import DirectTeleopAction
 
 try:
     from zed_recorder.srv import ZedRecord, ZedRecordRequest
@@ -58,11 +56,6 @@ class BiteServing(BypassableAction):
     def execute(self, manip, env, method, ui_device, state_pub, 
                 detection_sim=False, record_trial=False, file_directory=None, transition_function=lambda x,y: x+y,prediction_option= "Goal"):
         
-        # Move to look at face
-        #action = LookAtFace(bypass = self.bypass)
-        #state_pub.publish(action.name)
-        #action.execute(manip)
-
         if record_trial:
           if file_directory is None:
             file_directory = rospkg.RosPack().get_path('ada_meal_scenario') + '/trajectory_data'
@@ -79,16 +72,6 @@ class BiteServing(BypassableAction):
         else:
           filename_trajdata = None
 
-#        #if direct teleop, skip sequence
-#        if method == 'direct':
-#          state_pub.publish("Direct Teleop")
-#          direct_teleop_action = DirectTeleopAction(bypass=self.bypass)
-#          direct_teleop_action.execute(manip, ui_device, filename_trajdata=filename_trajdata)
-#
-#          #make sure we end at serving
-#          manip.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
-#        else:
-
 
         try: 
           # Move to look at plate
@@ -96,21 +79,20 @@ class BiteServing(BypassableAction):
           state_pub.publish(action.name)
           action.execute(manip)
 
-          # Detect morsal
+          # Detect morsel
           if self.bypass:
               detection_sim = True
-          action = DetectMorsal(bypass = detection_sim)
+          action = DetectMorsel(bypass = detection_sim)
           state_pub.publish(action.name)
           action.execute(manip.GetRobot())
                       
           # Move to get object
-          action = GetMorsal(bypass = self.bypass)
+          action = GetMorsel(bypass = self.bypass)
           state_pub.publish(action.name)
           action.execute(manip, method, ui_device, state_pub, 
                          filename_trajdata=filename_trajdata, transition_function=transition_function,prediction_option= predict_option)
 
-    
-          # Serve the morsal
+          # Serve the morsel
           action = Serve(bypass = self.bypass)
           state_pub.publish(action.name)
           action.execute(manip)

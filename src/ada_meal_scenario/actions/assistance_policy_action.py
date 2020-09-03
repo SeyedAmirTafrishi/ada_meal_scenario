@@ -1,13 +1,8 @@
 #creates a shared autonomy policy that runs essentially as an action
 
-import logging, numpy, prpy, os
+from bypassable_action import ActionException, BypassableAction
 from ada_assistance_policy.AdaHandler import AdaHandler
 from ada_assistance_policy.Goal import Goal
-import rospy
-import rospkg
-
-from bypassable_action import ActionException, BypassableAction
-
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 
 #import prpy.rave, prpy.util

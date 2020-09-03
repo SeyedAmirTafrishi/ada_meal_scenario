@@ -18,13 +18,13 @@ import rospkg
 import logging
 logger = logging.getLogger('ada_meal_scenario')
 
-def get_all_morsal_bodies(env):
+def get_all_morsel_bodies(env):
   all_bodies = []
   for i in range(1000):
-        morsal_name = morsal_index_to_name(i)
-        morsal_body = env.GetKinBody(morsal_name)
-        if morsal_body:
-            all_bodies.append(morsal_body)
+        morsel_name = morsel_index_to_name(i)
+        morsel_body = env.GetKinBody(morsel_name)
+        if morsel_body:
+            all_bodies.append(morsel_body)
         else:
             break
   return all_bodies
@@ -54,7 +54,7 @@ class GetMorsal(BypassableAction):
             prediction_option = "Goal"):
 
         """
-        Execute a sequence of plans that pick up the morsal
+        Execute a sequence of plans that pick up the morsel
         @param manip The manipulator
         """
         global time
@@ -93,7 +93,7 @@ class GetMorsal(BypassableAction):
         #TODO add plan to some start pose?
 
         if state_pub:
-          state_pub.publish("getting morsal with method " + str(method))
+          state_pub.publish("getting morsel with method " + str(method))
           if filename_trajdata and 'direct' not in method:
             state_pub.publish("recording data to " + str(filename_trajdata))
         
@@ -124,7 +124,7 @@ class GetMorsal(BypassableAction):
                                            transition_function=transition_function,
                                         prediction_option = predict_option)
 
-        # Now stab the morsal
+        # Now stab the morsel
         try:
           direction = numpy.array([0., 0., -1.])
             
@@ -161,7 +161,7 @@ def Get_Prestab_Pose_For_Morsal(morsal, fork, manip):
                                             [ 0.,  0.,-1., 0.],
                                             [ 0.,  0., 0., 1.]])
 
-    morsal_pose = morsal.GetTransform()
+    morsel_pose = morsel.GetTransform()
 
     #old values
     #xoffset = -0.185
@@ -192,7 +192,7 @@ def Get_Prestab_Pose_For_Morsal(morsal, fork, manip):
     #check to make sure ik solutions exist
     robot = manip.GetRobot()
     with robot:
-        logger.info('looking for ik for morsal ' + morsal.GetName())
+        logger.info('looking for ik for morsel ' + morsel.GetName())
         ik_filter_options = openravepy.IkFilterOptions.CheckEnvCollisions
         #first call FindIKSolution which is faster if it succeeds
         ik_sol = manip.FindIKSolution(desired_ee_pose, ik_filter_options)
@@ -200,9 +200,9 @@ def Get_Prestab_Pose_For_Morsal(morsal, fork, manip):
         if ik_sol is None:
             ik_sols = manip.FindIKSolutions(desired_ee_pose, ik_filter_options)
             if ik_sols is None:
-                logger.info('Found no iks for morsal ' + morsal.GetName() + '. Removing from detected list.')
+                logger.info('Found no iks for morsel ' + morsel.GetName() + '. Removing from detected list.')
                 return None
-    logger.info('Found ik for morsal ' + morsal.GetName())
+    logger.info('Found ik for morsel ' + morsel.GetName())
     return desired_ee_pose
 
 def read_offsets_from_file(filename='morsal_offsets.txt', xoffset=0., yoffset=0.):
