@@ -40,7 +40,7 @@ def get_all_delta_bodies(env):
             break
   return all_bodies
 
-class GetMorsal(BypassableAction):
+class GetMorsel(BypassableAction):
     def __init__(self, bypass=False):
         BypassableAction.__init__(self, 'GetMorsal', bypass=bypass)
         
