@@ -12,6 +12,11 @@ from ada_meal_scenario.actions.bite_serving import BiteServing
 from ada_meal_scenario.actions.bypassable_action import ActionException
 from ada_meal_scenario.gui_handler import *
 
+try:
+    from gazetracking.pupil_capture import PupilCapture
+except ImportError:
+    PupilCapture = None
+
 import warnings
 warnings.simplefilter(action = "ignore", category = FutureWarning)
 
