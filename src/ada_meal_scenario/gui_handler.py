@@ -15,21 +15,55 @@ default_bg_color = None
 # a is the robot action
 # u is the user action
 
+
 def transition(a, u, gamma):
     return a + u
+
 
 def transition_1gamma(a, u, gamma):
     return gamma*a + (1-gamma)*u
 
+
 def transition_2gamma(a, u, gamma):
-    return 2*gamma*a + (2 - 2*gamma)*u 
+    return 2*gamma*a + (2 - 2*gamma)*u
+
+
+class OptionSelector(Tkinter.Frame, object):
+    __BUTTON_CONFIG__ = {
+        'indicatoron': False,
+        'selectcolor': "#cc0000"
+    }
+
+    def __init__(self, parent, title, option_names, option_values, default_selection=None):
+        super(OptionSelector, self).__init__(parent)
+
+        label_font = tkFont.nametofont("TkDefaultFont")
+        label_font.configure(weight='bold', size=14)
+
+        self.label = Tkinter.Label(
+            self, text=title, font=label_font)
+        self.label.grid(row=0, sticky=Tkinter.E+Tkinter.W)
+
+        self.option_values = option_values
+        self.variable = Tkinter.IntVar()
+
+        self.buttons = []
+        for idx, text in enumerate(option_names):
+            button = Tkinter.Radiobutton(self, text=text, variable=self.variable, value=idx,
+                                         **OptionSelector.__BUTTON_CONFIG__)
+            button.grid(row=1+idx, column=0, sticky=Tkinter.E+Tkinter.W)
+            self.buttons.append(button)
+
+        if default_selection is not None:
+            self.buttons[default_selection].select()
+
+    def get_value(self):
+        return self.option_values[self.variable.get()]
+
 
 class GuiHandler(object):
     def __init__(self, get_gui_state_event, trial_starting_event, return_queue):
         self.master = Tkinter.Tk()
-        #self.method = None
-        #self.ui_device = None
-        self.all_buttons = dict()
         self.record_next_trial = False
         self.start_next_trial = False
         self.quit = False
@@ -49,60 +83,53 @@ class GuiHandler(object):
         #Tkinter.Grid.columnconfigure(self.master, 0, weight=10)
         sticky = Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S
 
-        self.method_frame = Tkinter.Frame(self.master)
-        self.method_frame.grid(row=0, column=0, sticky=sticky)
-        self.init_method_buttons(self.method_frame)
+        self.method_selector = OptionSelector(self.master, title="Method: \n",
+                                              option_names=[
+                                                  'Direct Teleop', 'Shared Auton Lvl 1', 'Shared Auton Lvl 2', 'Full Auton User Goal', 'Full Auton Random Goal'],
+                                              option_values=[['direct', 0.0], ['shared_auton_1', 0.33], [
+                                                  'shared_auton_2', 0.66], ['shared_auton_3', 1.0], ['autonomous', None]],
+                                              default_selection=4)
+        self.method_selector.grid(sticky=sticky)
 
-        empty_frame = Tkinter.Frame(self.master)
-        empty_frame.grid(row=0, column=1, sticky=sticky)
+        self.device_selector = OptionSelector(self.master, title="UI Device\n", option_names=['Mouse', 'Kinova USB'], 
+            option_values=['mouse', 'kinova'], default_selection=1)
+        self.device_selector.grid(row=0, column=1, sticky=sticky)
 
-        empty_label = Tkinter.Label(empty_frame, text="     ")
-        empty_label.grid(sticky=Tkinter.W+Tkinter.E)
+        self.transition_function_selector = OptionSelector(
+            self.master, title="Transition Function: \n", option_names=['a+u', 'gamma*a + (1-gamma)*u', '2*gamma*a + (2-2*gamma)*u'], 
+            option_values=[transition, transition_1gamma, transition_2gamma], default_selection=0)
+        self.transition_function_selector.grid(row=0, column=2, sticky=sticky)
 
-        self.UI_frame = Tkinter.Frame(self.master)
-        self.UI_frame.grid(row=0, column=2, sticky=sticky)
-        self.init_ui_device_buttons(self.UI_frame)
-
-        self.transition_frame = Tkinter.Frame(self.master)
-        self.transition_frame.grid(row=1, column=2, sticky=sticky)
-        self.init_transition_buttons(self.transition_frame)
-
-        self.prediction_option = Tkinter.Frame(self.master)
-        self.prediction_option.grid(row=1, column=3, sticky=sticky)
-        self.init_predict_buttons(self.prediction_option)
+        self.prediction_selector = OptionSelector(
+            self.master, title="Prediction Method: \n", option_names=['Policy', 'Gaze', 'Merged'],
+            option_values=['policy', 'gaze', 'merged'], default_selection=0)
+        self.prediction_selector.grid(row=0, column=3, sticky=sticky)
 
 
         self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(row=2, column=2, sticky=sticky)
+        self.start_frame.grid(row=1, column=2, sticky=sticky)
 
-        self.record_button = Tkinter.Button(self.start_frame, 
-                                            text="Record Next Trial", 
+        self.record_button = Tkinter.Button(self.start_frame,
+                                            text="Record Next Trial",
                                             command=self.record_button_callback)
         self.record_button.grid(sticky=Tkinter.W+Tkinter.E)
 
-        self.start_button = Tkinter.Button(self.start_frame, 
-                                           text="Start Next Trial", 
+        self.start_button = Tkinter.Button(self.start_frame,
+                                           text="Start Next Trial",
                                            command=self.start_button_callback)
         self.start_button.grid(sticky=Tkinter.W+Tkinter.E)
 
-
         self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(row=1, column=0, sticky=Tkinter.W+Tkinter.E+Tkinter.S)
+        self.start_frame.grid(
+            row=1, column=0, sticky=Tkinter.W+Tkinter.E+Tkinter.S)
 
-        self.quit_button = Tkinter.Button(self.start_frame, text="Quit", command=self.quit_button_callback)
+        self.quit_button = Tkinter.Button(
+            self.start_frame, text="Quit", command=self.quit_button_callback)
         self.quit_button.grid(sticky=Tkinter.W+Tkinter.E)
 
-        #self.all_buttons[arg] = b
-
-        self.method = 'autonomous'
-        self.ui_device = 'kinova'
-        self.gamma = None
-        self.transition_function = transition
-        self.prediction_option= "goal"
-        self.color_buttons()
 
     def mainloop(self):
-        #self.master.mainloop()
+        # self.master.mainloop()
         import time
         while True:
             self.master.update_idletasks()
@@ -116,127 +143,26 @@ class GuiHandler(object):
                 self.start_next_trial = False
                 configure_button_not_selected(self.start_button)
                 self.trial_starting_event.clear()
-           
+
             time.sleep(0.01)
 
-    def init_predict_buttons(self,frame):
-        label_font = self.default_font.copy()
-        label_font.configure(weight='bold')
-        self.method_label = Tkinter.Label(frame, text="Method: \n", font=label_font)
-        self.method_label.grid(sticky=Tkinter.W + Tkinter.E)
-
-        self.button_Goal = self.init_button_with_callback(self.select_predict_option, 'goal', 'Goal', frame)
-        self.button_Gaze = self.init_button_with_callback(self.select_predict_option, 'gaze', 'Gaze', frame)
-        self.button_Dual = self.init_button_with_callback(self.select_predict_option, 'Dual Prediction', 'Dual Prediction', frame)
-
-
-
-    def init_transition_buttons(self, frame):
-        label_font = self.default_font.copy()
-        label_font.configure(weight='bold')
-        self.method_label = Tkinter.Label(frame, text="Transition Function: \n", font=label_font)
-        self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
-
-        self.button_0gamma = self.init_button_with_callback(self.select_transition_function,
-                                                            transition,
-                                                            'a+u',
-                                                            frame)
-
-        self.button_1gamma = self.init_button_with_callback(self.select_transition_function,
-                                                            transition_1gamma,
-                                                            'gamma*a + (1-gamma)*u',
-                                                            frame)
-
-        self.button_2gamma = self.init_button_with_callback(self.select_transition_function,
-                                                            transition_2gamma,
-                                                            '2*gamma*a + (2-2*gamma)*u',
-                                                            frame)
-    def init_method_buttons(self, frame):
-        label_font = self.default_font.copy()
-        label_font.configure(weight='bold')
-
-        self.method_label = Tkinter.Label(frame, text="Method: \n", font=label_font)
-        self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
-
-        self.button_direct_teleop =  self.init_button_with_callback(self.select_assistance_method, 
-                                                                    ['direct', 0.0],
-                                                                    'Direct Teleop', 
-                                                                    frame)        
-        self.button_shared_auton_1 = self.init_button_with_callback(self.select_assistance_method, 
-                                                                    ['shared_auton_1', 0.33], 
-                                                                    'Shared Auton Lvl 1', 
-                                                                    frame)
-        self.button_shared_auton_2 = self.init_button_with_callback(self.select_assistance_method, 
-                                                                    ['shared_auton_2', 0.66],
-                                                                    'Shared Auton Lvl 2', 
-                                                                    frame)
-        self.button_shared_auton_3 = self.init_button_with_callback(self.select_assistance_method, 
-                                                                ['shared_auton_3', 1.0],
-                                                                'Full Auton User Goal', 
-                                                                frame)
-
-        self.button_full_auton = self.init_button_with_callback(self.select_assistance_method,
-                                                                ['autonomous', None],
-                                                                'Full Auton Random Goal', 
-                                                                frame)
-
-    def init_ui_device_buttons(self, frame):
-        label_font = self.default_font.copy()
-        label_font.configure(weight='bold')
-
-        self.method_label = Tkinter.Label(frame, text="UI Device \n", font=label_font)
-        self.method_label.grid(sticky=Tkinter.W+Tkinter.E)
-        
-        self.button_mouse = self.init_button_with_callback(self.select_ui_device, 'mouse', 'Mouse', frame)
-        self.button_kinova = self.init_button_with_callback(self.select_ui_device, 'kinova', 'Kinova USB', frame)
-
-    def init_button_with_callback(self, func, args, label, frame):
-        callback = partial(func, args)
-        b = Tkinter.Button(frame, text=label, command=callback)
-        b.grid(sticky=Tkinter.W+Tkinter.E)
-        self.all_buttons[str(args)] = b
-
-        #b.configure(state = "normal", relief="raised")
-
-        return b
-
-    def select_predict_option(self,predict_option):
-        self.predict_option= predict_option
-        print 'prediction_option: ' + str(self.predict_option), type(self.predict_option)
-        self.color_buttons()
-
-        pass
-
-    def select_transition_function(self, transition_function):
-        self.transition_function = transition_function
-        print 'transition_function: ' + str(self.transition_function), type(self.transition_function)
-        self.color_buttons()
-
-    def select_assistance_method(self, args):
-        self.method = args[0]
-        self.gamma = args[1]
-        print 'method: ' + str(self.method), type(self.method)
-        self.color_buttons()
-
-    def select_ui_device(self, ui_device):
-        self.ui_device = ui_device
-        print 'ui: ' + str(self.ui_device), type(self.ui_device)
-        self.color_buttons()
 
     def start_button_callback(self):
-        self.start_next_trial = toggle_trial_button_callback(self.start_button, self.start_next_trial)
-        #self.add_return_to_queue()
+        self.start_next_trial = toggle_trial_button_callback(
+            self.start_button, self.start_next_trial)
+        # self.add_return_to_queue()
 
     def record_button_callback(self):
-        self.record_next_trial = toggle_trial_button_callback(self.record_button, self.record_next_trial)
+        self.record_next_trial = toggle_trial_button_callback(
+            self.record_button, self.record_next_trial)
 
     def quit_button_callback(self):
         self.quit = toggle_trial_button_callback(self.quit_button, self.quit)
-        #self.add_return_to_queue()
+        # self.add_return_to_queue()
 
     def add_return_to_queue(self):
         curr_selected = self.get_selected_options()
-        #while not self.return_queue.empty():
+        # while not self.return_queue.empty():
         #    self.return_queue.get_nowait()
         self.return_queue.put(curr_selected)
 
@@ -244,22 +170,13 @@ class GuiHandler(object):
         to_ret = dict()
         to_ret['start'] = self.start_next_trial
         to_ret['quit'] = self.quit
-        to_ret['method'] = self.method
-        to_ret['ui_device'] = self.ui_device
+        to_ret['method'] = self.method_selector.get_value()[0]
+        to_ret['ui_device'] = self.device_selector.get_value()
         to_ret['record'] = self.record_next_trial
-        to_ret['transition_function'] = partial(self.transition_function, gamma=self.gamma)
+        to_ret['transition_function'] = partial(
+            self.transition_function_selector.get_value(), gamma=self.method_selector.get_value()[1])
+        to_ret['prediction_option'] = self.prediction_selector.get_value()
         return to_ret
-
-    def color_buttons(self):
-        #reset all
-        for key,b in self.all_buttons.iteritems():
-            configure_button_not_selected(b)
-        #set the selected items
-        configure_button_selected(self.all_buttons[self.ui_device])
-
-        print self.all_buttons.keys()
-        configure_button_selected(self.all_buttons[str([self.method, self.gamma])])
-        configure_button_selected(self.all_buttons[str(self.transition_function)])
 
 
 def toggle_trial_button_callback(button, curr_val):
@@ -270,8 +187,10 @@ def toggle_trial_button_callback(button, curr_val):
         configure_button_not_selected(button)
     return to_ret
 
+
 def configure_button_selected(button):
     button.configure(bg="#cc0000", activebackground="#ff0000")
+
 
 def configure_button_not_selected(button):
     global default_bg_color
@@ -285,18 +204,19 @@ def create_gui(get_gui_state_event, trial_starting_event, data_queue):
     signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit())
 
     gui.mainloop()
-    
+
 
 def start_gui_process():
     get_gui_state_event = multiprocessing.Event()
     trial_starting_event = multiprocessing.Event()
     data_queue = multiprocessing.Queue()
-    p = multiprocessing.Process(target=create_gui, args=(get_gui_state_event, trial_starting_event, data_queue,))
+    p = multiprocessing.Process(target=create_gui, args=(
+        get_gui_state_event, trial_starting_event, data_queue,))
     p.daemon = True
     p.start()
 
     return get_gui_state_event, trial_starting_event, data_queue, p
-    
+
 
 def empty_queue(queue):
     while not queue.empty():
@@ -304,9 +224,3 @@ def empty_queue(queue):
             queue.get_nowait()
         except Empty:
             break
-
-
-
-
-
-
