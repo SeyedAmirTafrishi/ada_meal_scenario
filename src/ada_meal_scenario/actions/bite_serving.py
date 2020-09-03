@@ -56,7 +56,7 @@ class BiteServing(BypassableAction):
         BypassableAction.__init__(self, 'BiteServing', bypass=bypass)
 
     def execute(self, manip, env, method, ui_device, state_pub, 
-                detection_sim=False, record_trial=False, file_directory=None, transition_function=lambda x,y: x+y):
+                detection_sim=False, record_trial=False, file_directory=None, transition_function=lambda x,y: x+y,prediction_option= "Goal"):
         
         # Move to look at face
         #action = LookAtFace(bypass = self.bypass)
@@ -107,7 +107,7 @@ class BiteServing(BypassableAction):
           action = GetMorsal(bypass = self.bypass)
           state_pub.publish(action.name)
           action.execute(manip, method, ui_device, state_pub, 
-                         filename_trajdata=filename_trajdata, transition_function=transition_function)
+                         filename_trajdata=filename_trajdata, transition_function=transition_function,prediction_option= predict_option)
 
     
           # Serve the morsal

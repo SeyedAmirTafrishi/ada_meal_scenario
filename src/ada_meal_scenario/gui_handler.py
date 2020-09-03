@@ -67,6 +67,11 @@ class GuiHandler(object):
         self.transition_frame.grid(row=1, column=2, sticky=sticky)
         self.init_transition_buttons(self.transition_frame)
 
+        self.prediction_option = Tkinter.Frame(self.master)
+        self.prediction_option.grid(row=1, column=3, sticky=sticky)
+        self.init_predict_buttons(self.prediction_option)
+
+
         self.start_frame = Tkinter.Frame(self.master)
         self.start_frame.grid(row=2, column=2, sticky=sticky)
 
@@ -93,6 +98,7 @@ class GuiHandler(object):
         self.ui_device = 'kinova'
         self.gamma = None
         self.transition_function = transition
+        self.prediction_option= "goal"
         self.color_buttons()
 
     def mainloop(self):
@@ -112,6 +118,18 @@ class GuiHandler(object):
                 self.trial_starting_event.clear()
            
             time.sleep(0.01)
+
+    def init_predict_buttons(self,frame):
+        label_font = self.default_font.copy()
+        label_font.configure(weight='bold')
+        self.method_label = Tkinter.Label(frame, text="Method: \n", font=label_font)
+        self.method_label.grid(sticky=Tkinter.W + Tkinter.E)
+
+        self.button_Goal = self.init_button_with_callback(self.select_predict_option, 'goal', 'Goal', frame)
+        self.button_Gaze = self.init_button_with_callback(self.select_predict_option, 'gaze', 'Gaze', frame)
+        self.button_Dual = self.init_button_with_callback(self.select_predict_option, 'Dual Prediction', 'Dual Prediction', frame)
+
+
 
     def init_transition_buttons(self, frame):
         label_font = self.default_font.copy()
@@ -157,7 +175,7 @@ class GuiHandler(object):
                                                                 'Full Auton User Goal', 
                                                                 frame)
 
-        self.button_full_auton = self.init_button_with_callback(self.select_assistance_method, 
+        self.button_full_auton = self.init_button_with_callback(self.select_assistance_method,
                                                                 ['autonomous', None],
                                                                 'Full Auton Random Goal', 
                                                                 frame)
@@ -181,6 +199,13 @@ class GuiHandler(object):
         #b.configure(state = "normal", relief="raised")
 
         return b
+
+    def select_predict_option(self,predict_option):
+        self.predict_option= predict_option
+        print 'prediction_option: ' + str(self.predict_option), type(self.predict_option)
+        self.color_buttons()
+
+        pass
 
     def select_transition_function(self, transition_function):
         self.transition_function = transition_function

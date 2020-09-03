@@ -50,7 +50,9 @@ class GetMorsal(BypassableAction):
              ui_device, 
              state_pub=None, 
              filename_trajdata=None, 
-             transition_function=lambda x,y: x+y):
+             transition_function=lambda x,y: x+y,
+            prediction_option = "Goal"):
+
         """
         Execute a sequence of plans that pick up the morsal
         @param manip The manipulator
@@ -119,7 +121,8 @@ class GetMorsal(BypassableAction):
                                            ui_device, 
                                            fix_magnitude_user_command=False, 
                                            filename_trajdata=filename_trajdata,
-                                           transition_function=transition_function)
+                                           transition_function=transition_function,
+                                        prediction_option = predict_option)
 
         # Now stab the morsal
         try:
