@@ -8,9 +8,8 @@ from std_msgs.msg import String
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
-from ada_meal_scenario.actions.bite_serving import BiteServing
-from ada_meal_scenario.actions.bypassable_action import ActionException
-from ada_meal_scenario.gui_handler import *
+from ada_meal_scenario.actions.action_sequence import ActionSequence
+from ada_meal_scenario.gui_handler import GuiHandler
 
 try:
     from gazetracking.pupil_capture import PupilCapture
@@ -249,16 +248,26 @@ def ResetTrial(robot):
       #if it doesn't work, unload controllers
 
 
-class DummyTrial(adapy.futures.Future):
-    def __init__(self, cfg):
-        print(cfg)
-
-        super(DummyTrial, self).__init__()
+class DummyTask(adapy.futures.Future):
+    def __init__(self, prev_result, config):
+        super(DummyTask, self).__init__()
+        print('Starting dummy task')
         self.timer = rospy.Timer(rospy.Duration(3.), lambda _: self.set_result(None), oneshot=True)
 
     def cancel(self):
         self.timer.shutdown()
         self.set_cancelled()
+
+def error_task(prev_result, config):
+    if config['method'] == 'direct':
+        raise RuntimeError(":(((")
+    else:
+        return DummyTask(prev_result, config)
+
+
+class DummyTrial(ActionSequence):
+    def __init__(self, config):
+        super(DummyTrial, self).__init__([DummyTask, error_task], config)
     
 
 if __name__ == "__main__":
@@ -275,7 +284,6 @@ if __name__ == "__main__":
 
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
-    state_pub = rospy.Publisher('ada_tasks', String, queue_size=10)
 
 
     #start by going to ada_meal_scenario_servingConfiguration
@@ -286,7 +294,8 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    gui = GuiHandler(start_trial_callback=DummyTrial, quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
+    gui = GuiHandler(start_trial_callback=DummyTrial,
+                     quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
 
     # Main loop
     while not rospy.is_shutdown():

@@ -4,6 +4,7 @@
 import Tkinter
 import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
+from adapy.futures import TimeoutError, CancelledError
 
 import os
 import rospkg
@@ -121,9 +122,8 @@ class LoggingOptions(Tkinter.Frame, object):
         self.data_root_button.grid(row=1, column=1, sticky=Tkinter.W)
 
         # choose user id
-        default_user_id, _ = DataRecordingUtils.get_next_available_user_ind(default_log_dir, make_dir=False)
         self.user_id_var = Tkinter.StringVar()
-        self.user_id_var.set(default_user_id)
+        self.update_next_user_id()
         self.user_id_var.trace("w", self._validate_user_id)
         self.user_id_entry = Tkinter.Entry(
             self, textvariable=self.user_id_var)
@@ -193,6 +193,12 @@ class LoggingOptions(Tkinter.Frame, object):
         # don't reset the state if we have no zed
         if self.zed_remote_recording_avail:
             self.zed_remote_recording.configure(state=state)
+
+    def update_next_user_id(self):
+        # when we've finished a trial, we need to advance the user id
+        default_user_id, _ = DataRecordingUtils.get_next_available_user_ind(
+            self.data_root_var.get(), make_dir=False)
+        self.user_id_var.set(default_user_id)
 
 
 class GuiHandler(object):
@@ -291,6 +297,7 @@ class GuiHandler(object):
         self.transition_function_selector.configure(state=Tkinter.NORMAL)
         self.prediction_selector.configure(state=Tkinter.NORMAL)
         self.logging_options.set_state(Tkinter.NORMAL)
+        self.logging_options.update_next_user_id()
 
         self.start_button.configure(state=Tkinter.NORMAL)
         self.quit_button.configure(state=Tkinter.NORMAL)
@@ -299,6 +306,20 @@ class GuiHandler(object):
         self.cancel_button.configure(state=Tkinter.DISABLED)
 
     def set_trial_finished(self):
+        # check how we ended
+        try:
+            res = self.trial.result(0)
+            # print a status message?
+        except CancelledError:
+            # print a status message?
+            pass
+        except TimeoutError:
+            # critical failure
+            assert(False, "Trial ended but timed out accessing info!")
+        except RuntimeError as ex:
+            # notify of the error
+            tkMessageBox.showerror(title="Trial error", message=str(ex))
+
         # clear the existing trial
         self.trial = None
         # and re-enable relevant buttons
