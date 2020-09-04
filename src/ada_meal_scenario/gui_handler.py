@@ -2,27 +2,58 @@
 # used to select the method and user input device
 
 import Tkinter
-import tkFont
+import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 
-from threading import Lock
-import multiprocessing
-from Queue import Empty
-from multiprocessing import Queue
+import os
+import rospkg
+
+from ada_teleoperation import DataRecordingUtils
+
 
 default_bg_color = None
 
+
+# Basic tooltip
+# From https://www.daniweb.com/programming/software-development/code/484591/a-tooltip-class-for-tkinter
+class ToolTip(object):
+    '''
+    create a tooltip for a given widget
+    '''
+
+    def __init__(self, widget, text='widget info'):
+        self.widget = widget
+        self.text = text
+        self.widget.bind("<Enter>", self.enter)
+        self.widget.bind("<Leave>", self.close)
+
+    def enter(self, event=None):
+        x = y = 0
+        x, y, cx, cy = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+        # creates a toplevel window
+        self.tw = Tkinter.Toplevel(self.widget)
+        # Leaves only the label and removes the app window
+        self.tw.wm_overrideredirect(True)
+        self.tw.wm_geometry("+%d+%d" % (x, y))
+        label = Tkinter.Label(self.tw, text=self.text, justify='left',
+                         background='yellow', relief='solid', borderwidth=1,
+                         font=("times", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def close(self, event=None):
+        if self.tw:
+            self.tw.destroy()
+
+
 # a is the robot action
 # u is the user action
-
-
 def transition(a, u, gamma):
     return a + u
 
-
 def transition_1gamma(a, u, gamma):
     return gamma*a + (1-gamma)*u
-
 
 def transition_2gamma(a, u, gamma):
     return 2*gamma*a + (2 - 2*gamma)*u
@@ -37,7 +68,7 @@ class OptionSelector(Tkinter.Frame, object):
     def __init__(self, parent, title, option_names, option_values, default_selection=None):
         super(OptionSelector, self).__init__(parent)
 
-        label_font = tkFont.nametofont("TkDefaultFont")
+        label_font = tkFont.nametofont("TkDefaultFont").copy()
         label_font.configure(weight='bold', size=14)
 
         self.label = Tkinter.Label(
@@ -60,17 +91,116 @@ class OptionSelector(Tkinter.Frame, object):
     def get_value(self):
         return self.option_values[self.variable.get()]
 
+    def configure(self, **kwargs):
+        for button in self.buttons:
+            button.configure(**kwargs)
+
+
+class LoggingOptions(Tkinter.Frame, object):
+    __USER_ID_INVALID_BG__ = "#cc0000"
+    def __init__(self, parent):
+        super(LoggingOptions, self).__init__(parent)
+
+        label_font = tkFont.nametofont("TkDefaultFont").copy()
+        label_font.configure(weight='bold', size=14)
+
+        self.label = Tkinter.Label(
+            self, text="Logging Options", font=label_font)
+        self.label.grid(row=0, sticky=Tkinter.E+Tkinter.W)
+
+        default_log_dir = os.path.join(rospkg.RosPack().get_path(
+            'ada_meal_scenario'), 'trajectory_data')
+        
+        # choose top dir for logging
+        self.data_root_var = Tkinter.StringVar(value=default_log_dir)
+        self.data_root_label = Tkinter.Label(
+            self, textvariable=self.data_root_var)
+        print('var: {}'.format(self.data_root_var.get()))
+        self.data_root_label.grid(row=1, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.data_root_button = Tkinter.Button(self, text='Select data directory', command=self._set_data_root)
+        self.data_root_button.grid(row=1, column=1, sticky=Tkinter.W)
+
+        # choose user id
+        default_user_id, _ = DataRecordingUtils.get_next_available_user_ind(default_log_dir, make_dir=False)
+        self.user_id_var = Tkinter.StringVar()
+        self.user_id_var.set(default_user_id)
+        self.user_id_var.trace("w", self._validate_user_id)
+        self.user_id_entry = Tkinter.Entry(
+            self, textvariable=self.user_id_var)
+        self.user_id_entry.grid(row=2, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.user_id_label = Tkinter.Label(self, text='User ID')
+        self.user_id_label.grid(row=2, column=1, sticky=Tkinter.W)
+
+        self.user_id_orig_bg = self.user_id_entry.cget("bg")
+
+        # additional logging options
+        self.pupil_labs_recording_var = Tkinter.BooleanVar()
+        self.pupil_labs_recording = Tkinter.Checkbutton(
+            self, text="Pupil Labs recording", variable=self.pupil_labs_recording_var)
+        self.pupil_labs_recording.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+
+        self.zed_remote_recording_var = Tkinter.BooleanVar()
+        self.zed_remote_recording = Tkinter.Checkbutton(
+            self, text='ZED Remote recording', variable=self.zed_remote_recording_var)
+        self.zed_remote_recording.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.zed_remote_recording_avail = LoggingOptions.check_zed_remote_available()
+        if not self.zed_remote_recording_avail:
+            self.zed_remote_recording.configure(state=Tkinter.DISABLED)
+            self.zed_remote_recording_tooltip = ToolTip(
+                self.zed_remote_recording, 'No ZED package found; ZED videos will NOT be recorded. Install the zed_ros_recording package to fix this error.')
+
+
+    @staticmethod
+    def check_zed_remote_available():
+        try:
+            from zed_recorder.srv import ZedRecord, ZedRecordRequest
+            return True
+        except ImportError:
+            return False
+
+
+    def _set_data_root(self):
+        data_root = tkFileDialog.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
+        if data_root is not None:
+            self.data_root_var.set(data_root)
+
+    def _get_data_dir(self):
+        return DataRecordingUtils.get_filename(
+            self.data_root_var.get(), DataRecordingUtils.user_folder_base_default, self.user_id_var.get(), '')
+    
+    def _validate_user_id(self, *_):
+        data_dir = self._get_data_dir()
+        if os.path.exists(data_dir):
+            self.user_id_entry.config(bg=LoggingOptions.__USER_ID_INVALID_BG__)
+        else:
+            self.user_id_entry.config(bg=self.user_id_orig_bg)
+
+    def get_config(self):
+        data_dir = self._get_data_dir()
+        if os.path.exists(data_dir):
+            raise ValueError("Directory exists: {}".format(data_dir))
+        return {
+            'data_dir': data_dir,
+            'record_pupil': self.pupil_labs_recording_var.get(),
+            'record_zed_remote': self.zed_remote_recording_var.get()
+        }
+
+    def set_state(self, state):
+        self.data_root_button.configure(state=state)
+        self.user_id_entry.configure(state=state)
+        self.pupil_labs_recording.configure(state=state)
+
+        # don't reset the state if we have no zed
+        if self.zed_remote_recording_avail:
+            self.zed_remote_recording.configure(state=state)
+
 
 class GuiHandler(object):
-    def __init__(self, get_gui_state_event, trial_starting_event, return_queue):
+    def __init__(self, start_trial_callback, quit_callback):
         self.master = Tkinter.Tk()
-        self.record_next_trial = False
-        self.start_next_trial = False
-        self.quit = False
 
-        self.get_gui_state_event = get_gui_state_event
-        self.trial_starting_event = trial_starting_event
-        self.return_queue = return_queue
+        self.start_trial_callback = start_trial_callback
+        self.quit_callback = quit_callback
 
         self.default_font = tkFont.nametofont("TkDefaultFont")
         self.default_font.configure(size=14)
@@ -93,134 +223,124 @@ class GuiHandler(object):
 
         self.device_selector = OptionSelector(self.master, title="UI Device\n", option_names=['Mouse', 'Kinova USB'], 
             option_values=['mouse', 'kinova'], default_selection=1)
-        self.device_selector.grid(row=0, column=1, sticky=sticky)
+        self.device_selector.grid(row=0, column=1, padx=2, pady=2, sticky=sticky)
 
         self.transition_function_selector = OptionSelector(
             self.master, title="Transition Function: \n", option_names=['a+u', 'gamma*a + (1-gamma)*u', '2*gamma*a + (2-2*gamma)*u'], 
             option_values=[transition, transition_1gamma, transition_2gamma], default_selection=0)
-        self.transition_function_selector.grid(row=0, column=2, sticky=sticky)
+        self.transition_function_selector.grid(
+            row=0, column=2, padx=2, pady=2, sticky=sticky)
 
         self.prediction_selector = OptionSelector(
             self.master, title="Prediction Method: \n", option_names=['Policy', 'Gaze', 'Merged'],
             option_values=['policy', 'gaze', 'merged'], default_selection=0)
-        self.prediction_selector.grid(row=0, column=3, sticky=sticky)
+        self.prediction_selector.grid(
+            row=0, column=3, padx=2, pady=2, sticky=sticky)
+
+        self.logging_options = LoggingOptions(self.master)
+        self.logging_options.grid(
+            row=1, column=1, padx=2, pady=2, columnspan=3, sticky=sticky)
 
 
         self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(row=1, column=2, sticky=sticky)
-
-        self.record_button = Tkinter.Button(self.start_frame,
-                                            text="Record Next Trial",
-                                            command=self.record_button_callback)
-        self.record_button.grid(sticky=Tkinter.W+Tkinter.E)
+        self.start_frame.grid(row=1, column=0, sticky=sticky, padx=2, pady=2)
 
         self.start_button = Tkinter.Button(self.start_frame,
                                            text="Start Next Trial",
-                                           command=self.start_button_callback)
-        self.start_button.grid(sticky=Tkinter.W+Tkinter.E)
+                                           command=self._start_button_callback)
+        self.start_button.grid(row=0, column=0, sticky=Tkinter.W+Tkinter.E)
 
-        self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(
-            row=1, column=0, sticky=Tkinter.W+Tkinter.E+Tkinter.S)
+        self.cancel_button = Tkinter.Button(
+            self.start_frame, text="Cancel trial", command=self._cancel_button_callback)
+        self.cancel_button.grid(row=1, column=0, sticky=Tkinter.W+Tkinter.E)
 
         self.quit_button = Tkinter.Button(
-            self.start_frame, text="Quit", command=self.quit_button_callback)
-        self.quit_button.grid(sticky=Tkinter.W+Tkinter.E)
+            self.start_frame, text="Quit", command=self._quit_button_callback)
+        self.quit_button.grid(row=2, column=0, sticky=Tkinter.W+Tkinter.E)
+
+        # configure enabled/disabled for waiting for a trial
+        self.trial = None
+        self.set_waiting_for_trial()
 
 
-    def mainloop(self):
-        # self.master.mainloop()
-        import time
-        while True:
-            self.master.update_idletasks()
-            self.master.update()
+    def run_once(self):
+        self.master.update()
+        # check if our trial is done
+        # we have to do this by polling bc tk doesn't let us create callbacks from outside threads :(
+        if self.trial is not None and self.trial.done():
+            self.set_trial_finished()
 
-            if self.get_gui_state_event.is_set():
-                self.add_return_to_queue()
-                self.get_gui_state_event.clear()
+    def set_trial_running(self):
+        # disable the buttons corresponding to a running trial
+        self.method_selector.configure(state=Tkinter.DISABLED)
+        self.device_selector.configure(state=Tkinter.DISABLED)
+        self.transition_function_selector.configure(state=Tkinter.DISABLED)
+        self.prediction_selector.configure(state=Tkinter.DISABLED)
+        self.logging_options.set_state(Tkinter.DISABLED)
 
-            if self.trial_starting_event.is_set():
-                self.start_next_trial = False
-                configure_button_not_selected(self.start_button)
-                self.trial_starting_event.clear()
+        self.start_button.configure(state=Tkinter.DISABLED)
+        self.quit_button.configure(state=Tkinter.DISABLED)
 
-            time.sleep(0.01)
+        # enable the cancel button
+        self.cancel_button.configure(state=Tkinter.NORMAL)
+
+    def set_waiting_for_trial(self):
+        # enable buttons related to configuring a trial
+        self.method_selector.configure(state=Tkinter.NORMAL)
+        self.device_selector.configure(state=Tkinter.NORMAL)
+        self.transition_function_selector.configure(state=Tkinter.NORMAL)
+        self.prediction_selector.configure(state=Tkinter.NORMAL)
+        self.logging_options.set_state(Tkinter.NORMAL)
+
+        self.start_button.configure(state=Tkinter.NORMAL)
+        self.quit_button.configure(state=Tkinter.NORMAL)
+
+        # disable the cancel button
+        self.cancel_button.configure(state=Tkinter.DISABLED)
+
+    def set_trial_finished(self):
+        # clear the existing trial
+        self.trial = None
+        # and re-enable relevant buttons
+        self.set_waiting_for_trial()
 
 
-    def start_button_callback(self):
-        self.start_next_trial = toggle_trial_button_callback(
-            self.start_button, self.start_next_trial)
-        # self.add_return_to_queue()
+    def _start_button_callback(self):
+        # get the config
+        try:
+            cfg = self.get_selected_options()
+        except ValueError as e:
+            tkMessageBox.showerror(message=str(e))
+            return
 
-    def record_button_callback(self):
-        self.record_next_trial = toggle_trial_button_callback(
-            self.record_button, self.record_next_trial)
+        # update enabled/disabled corresponding to running a trial
+        self.set_trial_running()
 
-    def quit_button_callback(self):
-        self.quit = toggle_trial_button_callback(self.quit_button, self.quit)
-        # self.add_return_to_queue()
+        # call the callback with the current config
+        self.trial = self.start_trial_callback(cfg)
 
-    def add_return_to_queue(self):
-        curr_selected = self.get_selected_options()
-        # while not self.return_queue.empty():
-        #    self.return_queue.get_nowait()
-        self.return_queue.put(curr_selected)
+    def _cancel_button_callback(self):
+        # disable the cancel button to remove duplicate calls
+        self.cancel_button.configure(state=Tkinter.DISABLED)
+        # TODO: maybe add a status message / confirm / something?
+        # request that the trial be canceled
+        if self.trial is not None: # handle cancel after trial is already terminating
+            self.trial.cancel()
+        # when the cancel is successful, the trial will call its finished_callback
+        # which will reset the gui
+
+
+    def _quit_button_callback(self):
+        self.quit_callback()
 
     def get_selected_options(self):
         to_ret = dict()
-        to_ret['start'] = self.start_next_trial
-        to_ret['quit'] = self.quit
         to_ret['method'] = self.method_selector.get_value()[0]
         to_ret['ui_device'] = self.device_selector.get_value()
-        to_ret['record'] = self.record_next_trial
         to_ret['transition_function'] = partial(
             self.transition_function_selector.get_value(), gamma=self.method_selector.get_value()[1])
         to_ret['prediction_option'] = self.prediction_selector.get_value()
+        to_ret['logging'] = self.logging_options.get_config()
         return to_ret
 
 
-def toggle_trial_button_callback(button, curr_val):
-    to_ret = not curr_val
-    if to_ret:
-        configure_button_selected(button)
-    else:
-        configure_button_not_selected(button)
-    return to_ret
-
-
-def configure_button_selected(button):
-    button.configure(bg="#cc0000", activebackground="#ff0000")
-
-
-def configure_button_not_selected(button):
-    global default_bg_color
-    button.configure(bg=default_bg_color, activebackground="white")
-
-
-def create_gui(get_gui_state_event, trial_starting_event, data_queue):
-    gui = GuiHandler(get_gui_state_event, trial_starting_event, data_queue)
-    import signal
-    import sys
-    signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit())
-
-    gui.mainloop()
-
-
-def start_gui_process():
-    get_gui_state_event = multiprocessing.Event()
-    trial_starting_event = multiprocessing.Event()
-    data_queue = multiprocessing.Queue()
-    p = multiprocessing.Process(target=create_gui, args=(
-        get_gui_state_event, trial_starting_event, data_queue,))
-    p.daemon = True
-    p.start()
-
-    return get_gui_state_event, trial_starting_event, data_queue, p
-
-
-def empty_queue(queue):
-    while not queue.empty():
-        try:
-            queue.get_nowait()
-        except Empty:
-            break

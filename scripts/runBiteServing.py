@@ -23,6 +23,8 @@ warnings.simplefilter(action = "ignore", category = FutureWarning)
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
 
+
+
 def setup(sim=False, viewer=None, debug=True):
     # load the robot and environment for meal serving
 
@@ -81,8 +83,6 @@ def load_fork_and_tool(env, robot):
     # sets up transforms, and has robot grab the tool
     # also adds objects on those tools, because collision checks with the 
     # meshes were not working properly
-
-
     tool = env.ReadKinBodyURI('objects/kinova_tool.kinbody.xml')
     env.Add(tool)
     
@@ -249,14 +249,19 @@ def ResetTrial(robot):
       #if it doesn't work, unload controllers
 
 
-def setup_trial_recording(record_next_trial, file_directory_user):
-    # creates user directory if we will be recording
-    if record_next_trial and not os.path.exists(file_directory_user):
-        os.makedirs(file_directory_user)
+class DummyTrial(adapy.futures.Future):
+    def __init__(self, cfg):
+        print(cfg)
+
+        super(DummyTrial, self).__init__()
+        self.timer = rospy.Timer(rospy.Duration(3.), lambda _: self.set_result(None), oneshot=True)
+
+    def cancel(self):
+        self.timer.shutdown()
+        self.set_cancelled()
     
 
 if __name__ == "__main__":
-    state_pub = rospy.Publisher('ada_tasks',String, queue_size=10)
         
     rospy.init_node('bite_serving_scenario', anonymous=True)
 
@@ -266,27 +271,12 @@ if __name__ == "__main__":
     parser.add_argument("--viewer", type=str, default='interactivemarker', help="The viewer to load")
     parser.add_argument("--detection-sim", action="store_true", help="Simulate detection of morsal")
     parser.add_argument("--jaco", action="store_true", default=False, help="Using jaco robot")
-    parser.add_argument("--userid", type=int, help="User ID number")
-    parser.add_argument("--no-pupil-tracking", action="store_true", help="Disable pupil tracking")
     args = parser.parse_args(rospy.myargv()[1:]) # exclude roslaunch args
 
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
+    state_pub = rospy.Publisher('ada_tasks', String, queue_size=10)
 
-    gui_get_event, gui_trial_starting_event, gui_queue, gui_process = start_gui_process()
-
-    #slow robot down
-    #save old limits
-#    old_acceleration_limits = robot.GetDOFAccelerationLimits()
-#    old_velocity_limits = robot.GetDOFVelocityLimits()
-#
-#    #slow down robot
-#    #robot.SetDOFVelocityLimits(0.6*robot.GetDOFVelocityLimits())
-#    #robot.SetDOFAccelerationLimits(0.8*robot.GetDOFAccelerationLimits())
-#
-#    robot.SetDOFVelocityLimits(old_velocity_limits)
-#    robot.SetDOFAccelerationLimits(old_acceleration_limits)
-# 
 
     #start by going to ada_meal_scenario_servingConfiguration
     if sim:
@@ -295,83 +285,54 @@ if __name__ == "__main__":
     else:
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
-#    camera_link = robot.GetLink('Camera_RGB_Frame')
-#    camera_transform = camera_link.GetTransform()
-#    with prpy.viz.RenderPoses([camera_transform], env):
+    # Set up the GUI
+    gui = GuiHandler(start_trial_callback=DummyTrial, quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
 
-    # Subscribe to the 'ada_tasks' topic (for talking during certain tasks)
-    #task_listener = rospy.Subscriber('ada_tasks', String, tasks_callback)
+    # Main loop
+    while not rospy.is_shutdown():
+        gui.run_once()
+        # let other tasks run
+        rospy.sleep(0.01)
 
+        # #signal to gui that we want the currently selected options
+        # empty_queue(gui_queue)
+        # gui_get_event.set()
+        # while gui_queue.empty():
+        #     time.sleep(0.05)
+        #     continue
 
-    # Start eyetracker remote controller
-    do_pupil_tracking= not args.no_pupil_tracking
-    if do_pupil_tracking:
-        logger.info('setting up pupil tracking')
-        pupil_capture = PupilCapture()
-        pupil_capture.setup(logger)
-    else:
-        pupil_capture = None
+        # gui_return = gui_queue.get()
 
-    logger.info('pupil tracker set, or none needed')
-    # Where to store rosbags and other user data - set this manually if userid was provided,
-    # otherwise dynamically generate it as one more than highest in directory
-    file_directory_user = None
-    file_directory = rospkg.RosPack().get_path('ada_meal_scenario') + '/trajectory_data'
-    if args.userid:
-        from ada_teleoperation.DataRecordingUtils import get_filename
-        file_directory_user = get_filename(file_directory=file_directory, filename_base='user_', file_ind=args.userid, file_type="")
-        # Check whether the file_directory_user exists
-        if os.path.exists(file_directory_user):
-            inp = raw_input("Filename " + file_directory_user + " exists. Press q to quit or enter to continue")
-            if inp == 'q':
-                raise OSError("Filename already exists. Quitting.")
-    else:
-        from ada_teleoperation.DataRecordingUtils import get_next_available_user_ind
-        user_number, file_directory_user = get_next_available_user_ind(file_directory=file_directory, make_dir=False)
+        # if gui_return['quit']:
+        #     break
+        # elif gui_return['start']:
+        #     if gui_return['record']:
+        #         # Start eyetracker recording
+        #         if pupil_capture:
+        #             pupil_capture.start()
+        #     #tell gui we are starting to reset next trial
+        #     gui_trial_starting_event.set()
+        #     # Start bite collection and presentation
+        #     try:
+        #         manip = robot.GetActiveManipulator()
+        #         action = BiteServing()
+        #         action.execute(manip, 
+        #                        env, 
+        #                        method=gui_return['method'], 
+        #                        ui_device=gui_return['ui_device'], 
+        #                        state_pub=state_pub, 
+        #                        detection_sim=args.detection_sim, 
+        #                        record_trial=gui_return['record'], 
+        #                        file_directory=file_directory_user,
+        #                        transition_function=gui_return['transition_function'],
+        #                        prediction_option= gui_return['prediction_option'])
+        #     except ActionException, e:
+        #         logger.info('Failed to complete bite serving: %s' % str(e))
 
-    while True:
-        #signal to gui that we want the currently selected options
-        empty_queue(gui_queue)
-        gui_get_event.set()
-        while gui_queue.empty():
-            time.sleep(0.05)
-            continue
+        #         ResetTrial(robot)
 
-        gui_return = gui_queue.get()
+        #     finally:
+        #         if pupil_capture:
+        #             pupil_capture.stop()
 
-        if gui_return['quit']:
-            break
-        elif gui_return['start']:
-            if gui_return['record']:
-                # Start eyetracker recording
-                if pupil_capture:
-                    pupil_capture.start()
-            #tell gui we are starting to reset next trial
-            gui_trial_starting_event.set()
-            # Start bite collection and presentation
-            try:
-                manip = robot.GetActiveManipulator()
-                action = BiteServing()
-                action.execute(manip, 
-                               env, 
-                               method=gui_return['method'], 
-                               ui_device=gui_return['ui_device'], 
-                               state_pub=state_pub, 
-                               detection_sim=args.detection_sim, 
-                               record_trial=gui_return['record'], 
-                               file_directory=file_directory_user,
-                               transition_function=gui_return['transition_function'],
-                               prediction_option= gui_return['prediction_option'])
-            except ActionException, e:
-                logger.info('Failed to complete bite serving: %s' % str(e))
-
-                ResetTrial(robot)
-
-            finally:
-                if pupil_capture:
-                    pupil_capture.stop()
-
-
-
-    gui_process.terminate()
 
