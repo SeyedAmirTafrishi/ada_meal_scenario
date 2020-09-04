@@ -11,6 +11,11 @@ morsel_base_name = 'morsel'
 def morsel_index_to_name(ind):
     return morsel_base_name + str(ind)
 
+
+delta_base_name = 'delta'
+def delta_index_to_name(ind):
+    return delta_base_name + str(ind)
+
 class DetectMorsel(BypassableAction):
 
     def __init__(self, bypass=False):

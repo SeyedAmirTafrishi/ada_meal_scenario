@@ -11,7 +11,7 @@ from prpy.ik_ranking import MultipleNominalConfigurations
 from assistance_policy_action import AssistancePolicyAction
 from direct_teleop_action import DirectTeleopAction
 
-from detect_morsal import morsal_index_to_name, delta_index_to_name
+from detect_morsel import morsel_index_to_name, delta_index_to_name
 
 import rospkg
 
