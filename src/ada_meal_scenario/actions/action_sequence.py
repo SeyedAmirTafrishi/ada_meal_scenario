@@ -3,6 +3,12 @@ from adapy.futures import Future, TimeoutError, CancelledError
 from std_msgs.msg import String
 from collections import deque
 import rospy
+import functools
+import threading
+
+import logging
+project_name = 'ada_meal_scenario'
+logger = logging.getLogger(project_name)
 
 class ActionSequence(Future):
     def __init__(self, action_factories=[], config=None):
@@ -15,7 +21,19 @@ class ActionSequence(Future):
         self._start_next_action()
 
     def cancel(self):
-        self.current_action.cancel()
+        try:
+            self.current_action.cancel()
+        except NotImplementedError:
+            # we can't cancel this operation!
+            # so make sure it's the last one called
+            logger.warning(
+                'Unable to cancel current action; waiting till it terminates to cancel')
+            def cancel_factory():
+                future = Future()
+                future.set_cancelled()
+                return future
+            self.action_factories.clear()
+            self.action_factories.append(cancel_factory)
 
     def _action_finished(self, action):
         # nonsense check
@@ -48,5 +66,25 @@ class ActionSequence(Future):
             self.current_action.add_done_callback(self._action_finished)
         except RuntimeError as ex:
             self.set_exception(ex)
+
+def make_future(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        future = Future()
+        def run(*args, **kwargs):
+            try:
+                future.set_result(fn(*args, **kwargs))
+            except RuntimeError as ex:
+                future.set_exception(ex)
+        future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
+        future._handle.daemon = True
+        future._handle.start()
+        return future
+    return wrapper
+
+class NoOp(Future):
+    def __init__(self, result=None, *args, **kwargs):
+        super(NoOp, self).__init__()
+        self.set_result(result)
 
 

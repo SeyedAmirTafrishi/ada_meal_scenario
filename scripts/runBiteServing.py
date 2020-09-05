@@ -4,12 +4,14 @@ import adapy, argparse, logging, numpy, os, openravepy, prpy, rospy, rospkg, tim
 import numpy as np
 from catkin.find_in_workspaces import find_in_workspaces
 from std_msgs.msg import String
+from functools import partial
 
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
 from ada_meal_scenario.actions.action_sequence import ActionSequence
 from ada_meal_scenario.gui_handler import GuiHandler
+from ada_meal_scenario.actions.trajectory_actions import LookAtPlate, Serve
 
 try:
     from gazetracking.pupil_capture import PupilCapture
@@ -265,9 +267,10 @@ def error_task(prev_result, config):
         return DummyTask(prev_result, config)
 
 
-class DummyTrial(ActionSequence):
-    def __init__(self, config):
-        super(DummyTrial, self).__init__([DummyTask, error_task], config)
+DummyTrial = partial(ActionSequence, action_factories=[DummyTask, error_task])
+LookThenServeTrial = partial(ActionSequence, action_factories=[LookAtPlate, Serve])
+
+
     
 
 if __name__ == "__main__":
@@ -284,6 +287,7 @@ if __name__ == "__main__":
 
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
+    base_config = {'env': env, 'robot': robot}
 
 
     #start by going to ada_meal_scenario_servingConfiguration
@@ -294,7 +298,7 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    gui = GuiHandler(start_trial_callback=DummyTrial,
+    gui = GuiHandler(base_config=base_config, start_trial_callback=LookThenServeTrial,
                      quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
 
     # Main loop

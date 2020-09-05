@@ -202,9 +202,10 @@ class LoggingOptions(Tkinter.Frame, object):
 
 
 class GuiHandler(object):
-    def __init__(self, start_trial_callback, quit_callback):
+    def __init__(self, base_config, start_trial_callback, quit_callback):
         self.master = Tkinter.Tk()
 
+        self.base_config = base_config
         self.start_trial_callback = start_trial_callback
         self.quit_callback = quit_callback
 
@@ -315,7 +316,7 @@ class GuiHandler(object):
             pass
         except TimeoutError:
             # critical failure
-            assert(False, "Trial ended but timed out accessing info!")
+            assert False, "Trial ended but timed out accessing info!"
         except RuntimeError as ex:
             # notify of the error
             tkMessageBox.showerror(title="Trial error", message=str(ex))
@@ -329,7 +330,8 @@ class GuiHandler(object):
     def _start_button_callback(self):
         # get the config
         try:
-            cfg = self.get_selected_options()
+            cfg = self.base_config.copy()
+            cfg.update(self.get_selected_options())
         except ValueError as e:
             tkMessageBox.showerror(message=str(e))
             return
@@ -338,7 +340,7 @@ class GuiHandler(object):
         self.set_trial_running()
 
         # call the callback with the current config
-        self.trial = self.start_trial_callback(cfg)
+        self.trial = self.start_trial_callback(config=cfg)
 
     def _cancel_button_callback(self):
         # disable the cancel button to remove duplicate calls
