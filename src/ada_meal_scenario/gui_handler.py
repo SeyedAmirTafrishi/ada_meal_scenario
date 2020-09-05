@@ -150,6 +150,7 @@ class LoggingOptions(Tkinter.Frame, object):
                 self.zed_remote_recording, 'No ZED package found; ZED videos will NOT be recorded. Install the zed_ros_recording package to fix this error.')
 
 
+
     @staticmethod
     def check_zed_remote_available():
         try:
@@ -265,6 +266,12 @@ class GuiHandler(object):
             self.start_frame, text="Quit", command=self._quit_button_callback)
         self.quit_button.grid(row=2, column=0, sticky=Tkinter.W+Tkinter.E)
 
+        # add a status bar
+        self.status_var = Tkinter.StringVar(value='Ready')
+        self.status_bar = Tkinter.Label(
+            self.master, textvariable=self.status_var, bd=1, relief=Tkinter.SUNKEN, anchor=Tkinter.W)
+        self.status_bar.grid(row=2, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
+
         # configure enabled/disabled for waiting for a trial
         self.trial = None
         self.set_waiting_for_trial()
@@ -287,6 +294,7 @@ class GuiHandler(object):
 
         self.start_button.configure(state=Tkinter.DISABLED)
         self.quit_button.configure(state=Tkinter.DISABLED)
+        self.status_var.set('Trial running')
 
         # enable the cancel button
         self.cancel_button.configure(state=Tkinter.NORMAL)
@@ -310,16 +318,16 @@ class GuiHandler(object):
         # check how we ended
         try:
             res = self.trial.result(0)
-            # print a status message?
+            self.status_var.set('Trial completed successfully')
         except CancelledError:
-            # print a status message?
-            pass
+            self.status_var.set('Trial cancelled')
         except TimeoutError:
             # critical failure
             assert False, "Trial ended but timed out accessing info!"
         except RuntimeError as ex:
             # notify of the error
             tkMessageBox.showerror(title="Trial error", message=str(ex))
+            self.status_var.set('Trial error: {}'.format(str(ex)))
 
         # clear the existing trial
         self.trial = None
@@ -345,9 +353,9 @@ class GuiHandler(object):
     def _cancel_button_callback(self):
         # disable the cancel button to remove duplicate calls
         self.cancel_button.configure(state=Tkinter.DISABLED)
-        # TODO: maybe add a status message / confirm / something?
         # request that the trial be canceled
         if self.trial is not None: # handle cancel after trial is already terminating
+            self.status_var.set('Trial being cancelled...')
             self.trial.cancel()
         # when the cancel is successful, the trial will call its finished_callback
         # which will reset the gui

@@ -28,12 +28,20 @@ class ActionSequence(Future):
             # so make sure it's the last one called
             logger.warning(
                 'Unable to cancel current action; waiting till it terminates to cancel')
-            def cancel_factory():
+
+            def cancel_factory(*args, **kwargs):
                 future = Future()
                 future.set_cancelled()
                 return future
-            self.action_factories.clear()
-            self.action_factories.append(cancel_factory)
+
+            # if we're on the last action, just let it finish
+            # otherwise stick a cancel action as the next action
+            if  len(self.action_factories) > 0:
+                # OK not to make this thread-safe with len() above
+                # Worst case is we start the last action between the if statement above and this append function below
+                # in that case, even though the trial technically finished, we mark it as cancelled
+                # but if the user requested cancellation, seems like not a problem
+                self.action_factories.appendleft(cancel_factory)
 
     def _action_finished(self, action):
         # nonsense check
