@@ -1,6 +1,6 @@
 import logging, numpy, prpy, os
 import prpy.rave, prpy.util
-from action_sequence import ActionSequence, make_future, NoOp
+from action_sequence import ActionSequence, defer, futurize, NoOp
 from prpy.planning.base import PlanningError
 from functools import partial
 
@@ -45,8 +45,8 @@ class RunTrajectory(ActionSequence):
     def _execute_traj(self, traj):
         if self.robot.simulated:
             # if the robot is simulated, it calls prpy.base.robot.ExecuteTrajectory()
-            # which does NOT support defer()
-            return make_future(self.robot.ExecuteTrajectory)(traj)
+            # which does NOT support defer=True
+            return defer(blocking=False, target=self.robot.ExecuteTrajectory, args=(traj,))
         else:
             return self.robot.ExecuteTrajectory(traj, defer=True)
 
@@ -62,7 +62,7 @@ class RunTrajectory(ActionSequence):
             traj = self.robot.PostProcessPath(self.robot.PlanToConfiguration(last_config))
             return self._execute_traj(traj)
             
-            
+    @futurize(blocking=True)
     def _bypass(self, prev_result, config):
         cspec = self.traj.GetConfigurationSpecification()
         last_wpt = self.traj.GetWaypoint(self.traj.GetNumWaypoints()-1)
@@ -73,7 +73,6 @@ class RunTrajectory(ActionSequence):
         
         with self.env:
             self.robot.SetDOFValues(values=dofvalues, dofindices=dofindices)
-        return NoOp()
         
 
 # load in the expected configurations

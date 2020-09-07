@@ -9,9 +9,10 @@ from functools import partial
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
-from ada_meal_scenario.actions.action_sequence import ActionSequence
+from ada_meal_scenario.actions.action_sequence import ActionSequence, futurize
 from ada_meal_scenario.gui_handler import GuiHandler
 from ada_meal_scenario.actions.trajectory_actions import LookAtPlate, Serve
+from ada_meal_scenario.actions.detect_goals import GenerateDummyMorsels, DetectMorsels
 
 try:
     from gazetracking.pupil_capture import PupilCapture
@@ -268,7 +269,15 @@ def error_task(prev_result, config):
 
 
 DummyTrial = partial(ActionSequence, action_factories=[DummyTask, error_task])
-LookThenServeTrial = partial(ActionSequence, action_factories=[LookAtPlate, Serve])
+LookThenServeTrial = partial(
+    ActionSequence, action_factories=[LookAtPlate, Serve])
+
+@futurize(blocking=True)
+def PrintResult(prev_result, config):
+    rospy.loginfo(prev_result)
+
+LookDetectServeTrial = partial(
+    ActionSequence, action_factories=[LookAtPlate, DetectMorsels, PrintResult, Serve])
 
 
     
@@ -298,14 +307,17 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    gui = GuiHandler(base_config=base_config, start_trial_callback=LookThenServeTrial,
+    gui = GuiHandler(base_config=base_config, start_trial_callback=LookDetectServeTrial,
                      quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
 
     # Main loop
     while not rospy.is_shutdown():
         gui.run_once()
         # let other tasks run
-        rospy.sleep(0.01)
+        # warning: if you use rospy.sleep here, we are incompatible with use_sim_time!
+        # (if rospy had roscpp's wallclock this wouldn't be a problem)
+        # so just sleep the old way
+        time.sleep(0.01)
 
         # #signal to gui that we want the currently selected options
         # empty_queue(gui_queue)

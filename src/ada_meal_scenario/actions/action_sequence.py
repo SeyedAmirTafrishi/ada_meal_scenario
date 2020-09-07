@@ -75,20 +75,54 @@ class ActionSequence(Future):
         except RuntimeError as ex:
             self.set_exception(ex)
 
-def make_future(fn):
+
+def defer_threaded(fn, args, kwargs):
+    future = Future()
+
+    def run(*args, **kwargs):
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except RuntimeError as ex:
+            future.set_exception(ex)
+    future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
+    future._handle.daemon = True
+    future._handle.start()
+    return future
+
+
+def futurize_threaded(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs): # rewrap so we can use functools.wraps for docstrings etc
+        return defer_threaded(fn, args, kwargs)
+    return wrapper
+
+
+def defer_blocking(fn, args=(), kwargs={}):
+    future = Future()
+    try:
+        future.set_result(fn(*args, **kwargs))
+    except RuntimeError as ex:
+        future.set_exception(ex)
+    return future
+
+def futurize_blocking(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        future = Future()
-        def run(*args, **kwargs):
-            try:
-                future.set_result(fn(*args, **kwargs))
-            except RuntimeError as ex:
-                future.set_exception(ex)
-        future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
-        future._handle.daemon = True
-        future._handle.start()
-        return future
+        return defer_blocking(fn, args, kwargs)
     return wrapper
+
+def defer(blocking, target, args=(), kwargs={}):
+    if blocking:
+        return defer_blocking(target, args, kwargs)
+    else:
+        return defer_threaded(target, args, kwargs)
+
+def futurize(blocking=False):
+    if blocking:
+        return futurize_blocking
+    else:
+        return futurize_threaded
+
 
 class NoOp(Future):
     def __init__(self, result=None, *args, **kwargs):
