@@ -70,7 +70,7 @@ class OptionSelector(Tkinter.Frame, object):
         super(OptionSelector, self).__init__(parent)
 
         label_font = tkFont.nametofont("TkDefaultFont").copy()
-        label_font.configure(weight='bold', size=14)
+        label_font.configure(weight='bold')
 
         self.label = Tkinter.Label(
             self, text=title, font=label_font)
@@ -103,7 +103,7 @@ class LoggingOptions(Tkinter.Frame, object):
         super(LoggingOptions, self).__init__(parent)
 
         label_font = tkFont.nametofont("TkDefaultFont").copy()
-        label_font.configure(weight='bold', size=14)
+        label_font.configure(weight='bold')
 
         self.label = Tkinter.Label(
             self, text="Logging Options", font=label_font)
@@ -211,7 +211,7 @@ class GuiHandler(object):
         self.quit_callback = quit_callback
 
         self.default_font = tkFont.nametofont("TkDefaultFont")
-        self.default_font.configure(size=14)
+        self.default_font.configure(size=10)
         self.master.option_add("*Font", self.default_font)
 
         global default_bg_color
