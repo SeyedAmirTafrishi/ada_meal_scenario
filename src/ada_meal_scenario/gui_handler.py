@@ -6,7 +6,7 @@ import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 import traceback
 from adapy.futures import TimeoutError, CancelledError
-from ada_meal_scenario.actions.assistance_policy_action import AssistanceConfigFrame
+from ada_meal_scenario.assistance.assistance_policy_action import AssistanceConfigFrame
 
 import os
 import rospkg

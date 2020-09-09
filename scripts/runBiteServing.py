@@ -9,11 +9,11 @@ from functools import partial
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
-from ada_meal_scenario.actions.action_sequence import ActionSequence, futurize
+from ada_meal_scenario.action_sequence import ActionSequence, futurize
 from ada_meal_scenario.gui_handler import GuiHandler
-from ada_meal_scenario.actions.trajectory_actions import LookAtPlate, Serve
-from ada_meal_scenario.actions.detect_goals import GenerateDummyMorsels, DetectMorsels
-from ada_meal_scenario.actions.assistance_policy_action import do_assistance
+from ada_meal_scenario.trajectory_actions import LookAtPlate, Serve
+from ada_meal_scenario.detect_goals import GenerateDummyMorsels, DetectMorsels
+from ada_meal_scenario.assistance.assistance_policy_action import do_assistance
 
 try:
     from gazetracking.pupil_capture import PupilCapture
