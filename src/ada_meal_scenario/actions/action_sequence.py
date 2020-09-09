@@ -5,6 +5,7 @@ from collections import deque
 import rospy
 import functools
 import threading
+import traceback
 
 import logging
 project_name = 'ada_meal_scenario'
@@ -21,6 +22,13 @@ class ActionSequence(Future):
         self._start_next_action()
 
     def cancel(self):
+        # make sure the next action we do is a cancel action
+        def cancel_factory(*args, **kwargs):
+            future = Future()
+            future.set_cancelled()
+            return future
+        self.action_factories.appendleft(cancel_factory) # deque is thread-safe
+
         try:
             self.current_action.cancel()
         except NotImplementedError:
@@ -29,19 +37,6 @@ class ActionSequence(Future):
             logger.warning(
                 'Unable to cancel current action; waiting till it terminates to cancel')
 
-            def cancel_factory(*args, **kwargs):
-                future = Future()
-                future.set_cancelled()
-                return future
-
-            # if we're on the last action, just let it finish
-            # otherwise stick a cancel action as the next action
-            if  len(self.action_factories) > 0:
-                # OK not to make this thread-safe with len() above
-                # Worst case is we start the last action between the if statement above and this append function below
-                # in that case, even though the trial technically finished, we mark it as cancelled
-                # but if the user requested cancellation, seems like not a problem
-                self.action_factories.appendleft(cancel_factory)
 
     def _action_finished(self, action):
         # nonsense check
@@ -55,7 +50,10 @@ class ActionSequence(Future):
             assert False, "Trial ended but timed out accessing info!"
         except CancelledError:
             self.set_cancelled()
-        except RuntimeError as ex:
+        except Exception as ex:
+            # give full info in the console
+            # need to do it here bc re-throwing it in a different thread chances the traceback
+            traceback.print_exc()
             self.set_exception(ex)
     
     def _start_next_action(self, result=None):
@@ -72,7 +70,10 @@ class ActionSequence(Future):
             self.current_action = next_action_factory(
                 prev_result=result, config=self.config)
             self.current_action.add_done_callback(self._action_finished)
-        except RuntimeError as ex:
+        except Exception as ex:
+            # give full info in the console
+            # need to do it here bc re-throwing it in a different thread chances the traceback
+            traceback.print_exc()
             self.set_exception(ex)
 
 
@@ -82,7 +83,7 @@ def defer_threaded(fn, args, kwargs):
     def run(*args, **kwargs):
         try:
             future.set_result(fn(*args, **kwargs))
-        except RuntimeError as ex:
+        except Exception as ex:
             future.set_exception(ex)
     future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
     future._handle.daemon = True
@@ -101,7 +102,7 @@ def defer_blocking(fn, args=(), kwargs={}):
     future = Future()
     try:
         future.set_result(fn(*args, **kwargs))
-    except RuntimeError as ex:
+    except Exception as ex:
         future.set_exception(ex)
     return future
 
