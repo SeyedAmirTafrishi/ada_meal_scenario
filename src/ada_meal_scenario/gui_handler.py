@@ -4,7 +4,9 @@
 import Tkinter
 import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
+import traceback
 from adapy.futures import TimeoutError, CancelledError
+from ada_meal_scenario.actions.assistance_policy_action import AssistanceConfigFrame
 
 import os
 import rospkg
@@ -48,53 +50,6 @@ class ToolTip(object):
             self.tw.destroy()
 
 
-# a is the robot action
-# u is the user action
-def transition(a, u, gamma):
-    return a + u
-
-def transition_1gamma(a, u, gamma):
-    return gamma*a + (1-gamma)*u
-
-def transition_2gamma(a, u, gamma):
-    return 2*gamma*a + (2 - 2*gamma)*u
-
-
-class OptionSelector(Tkinter.Frame, object):
-    __BUTTON_CONFIG__ = {
-        'indicatoron': False,
-        'selectcolor': "#cc0000"
-    }
-
-    def __init__(self, parent, title, option_names, option_values, default_selection=None):
-        super(OptionSelector, self).__init__(parent)
-
-        label_font = tkFont.nametofont("TkDefaultFont").copy()
-        label_font.configure(weight='bold')
-
-        self.label = Tkinter.Label(
-            self, text=title, font=label_font)
-        self.label.grid(row=0, sticky=Tkinter.E+Tkinter.W)
-
-        self.option_values = option_values
-        self.variable = Tkinter.IntVar()
-
-        self.buttons = []
-        for idx, text in enumerate(option_names):
-            button = Tkinter.Radiobutton(self, text=text, variable=self.variable, value=idx,
-                                         **OptionSelector.__BUTTON_CONFIG__)
-            button.grid(row=1+idx, column=0, sticky=Tkinter.E+Tkinter.W)
-            self.buttons.append(button)
-
-        if default_selection is not None:
-            self.buttons[default_selection].select()
-
-    def get_value(self):
-        return self.option_values[self.variable.get()]
-
-    def configure(self, **kwargs):
-        for button in self.buttons:
-            button.configure(**kwargs)
 
 
 class LoggingOptions(Tkinter.Frame, object):
@@ -217,33 +172,10 @@ class GuiHandler(object):
         global default_bg_color
         default_bg_color = self.master.cget("bg")
 
-        #Tkinter.Grid.rowconfigure(self.master, 0, weight=10)
-        #Tkinter.Grid.columnconfigure(self.master, 0, weight=10)
+
         sticky = Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S
-
-        self.method_selector = OptionSelector(self.master, title="Method: \n",
-                                              option_names=[
-                                                  'Direct Teleop', 'Shared Auton Lvl 1', 'Shared Auton Lvl 2', 'Full Auton User Goal', 'Full Auton Random Goal'],
-                                              option_values=[['direct', 0.0], ['shared_auton_1', 0.33], [
-                                                  'shared_auton_2', 0.66], ['shared_auton_3', 1.0], ['autonomous', None]],
-                                              default_selection=4)
-        self.method_selector.grid(sticky=sticky)
-
-        self.device_selector = OptionSelector(self.master, title="UI Device\n", option_names=['Mouse', 'Kinova USB'], 
-            option_values=['mouse', 'kinova'], default_selection=1)
-        self.device_selector.grid(row=0, column=1, padx=2, pady=2, sticky=sticky)
-
-        self.transition_function_selector = OptionSelector(
-            self.master, title="Transition Function: \n", option_names=['a+u', 'gamma*a + (1-gamma)*u', '2*gamma*a + (2-2*gamma)*u'], 
-            option_values=[transition, transition_1gamma, transition_2gamma], default_selection=0)
-        self.transition_function_selector.grid(
-            row=0, column=2, padx=2, pady=2, sticky=sticky)
-
-        self.prediction_selector = OptionSelector(
-            self.master, title="Prediction Method: \n", option_names=['Policy', 'Gaze', 'Merged'],
-            option_values=['policy', 'gaze', 'merged'], default_selection=0)
-        self.prediction_selector.grid(
-            row=0, column=3, padx=2, pady=2, sticky=sticky)
+        self.assistance_config = AssistanceConfigFrame(self.master)
+        self.assistance_config.grid(row=0, column=0, columnspan=4, sticky=sticky)
 
         self.logging_options = LoggingOptions(self.master)
         self.logging_options.grid(
@@ -286,10 +218,7 @@ class GuiHandler(object):
 
     def set_trial_running(self):
         # disable the buttons corresponding to a running trial
-        self.method_selector.configure(state=Tkinter.DISABLED)
-        self.device_selector.configure(state=Tkinter.DISABLED)
-        self.transition_function_selector.configure(state=Tkinter.DISABLED)
-        self.prediction_selector.configure(state=Tkinter.DISABLED)
+        self.assistance_config.set_state(Tkinter.DISABLED)
         self.logging_options.set_state(Tkinter.DISABLED)
 
         self.start_button.configure(state=Tkinter.DISABLED)
@@ -301,10 +230,7 @@ class GuiHandler(object):
 
     def set_waiting_for_trial(self):
         # enable buttons related to configuring a trial
-        self.method_selector.configure(state=Tkinter.NORMAL)
-        self.device_selector.configure(state=Tkinter.NORMAL)
-        self.transition_function_selector.configure(state=Tkinter.NORMAL)
-        self.prediction_selector.configure(state=Tkinter.NORMAL)
+        self.assistance_config.set_state(Tkinter.NORMAL)
         self.logging_options.set_state(Tkinter.NORMAL)
         self.logging_options.update_next_user_id()
 
@@ -324,7 +250,7 @@ class GuiHandler(object):
         except TimeoutError:
             # critical failure
             assert False, "Trial ended but timed out accessing info!"
-        except RuntimeError as ex:
+        except Exception as ex:
             # notify of the error
             tkMessageBox.showerror(title="Trial error", message=str(ex))
             self.status_var.set('Trial error: {}'.format(str(ex)))
@@ -366,11 +292,7 @@ class GuiHandler(object):
 
     def get_selected_options(self):
         to_ret = dict()
-        to_ret['method'] = self.method_selector.get_value()[0]
-        to_ret['ui_device'] = self.device_selector.get_value()
-        to_ret['transition_function'] = partial(
-            self.transition_function_selector.get_value(), gamma=self.method_selector.get_value()[1])
-        to_ret['prediction_option'] = self.prediction_selector.get_value()
+        to_ret.update(self.assistance_config.get_config())
         to_ret['logging'] = self.logging_options.get_config()
         return to_ret
 

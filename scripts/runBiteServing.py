@@ -13,6 +13,7 @@ from ada_meal_scenario.actions.action_sequence import ActionSequence, futurize
 from ada_meal_scenario.gui_handler import GuiHandler
 from ada_meal_scenario.actions.trajectory_actions import LookAtPlate, Serve
 from ada_meal_scenario.actions.detect_goals import GenerateDummyMorsels, DetectMorsels
+from ada_meal_scenario.actions.assistance_policy_action import do_assistance
 
 try:
     from gazetracking.pupil_capture import PupilCapture
@@ -279,6 +280,11 @@ def PrintResult(prev_result, config):
 LookDetectServeTrial = partial(
     ActionSequence, action_factories=[LookAtPlate, DetectMorsels, PrintResult, Serve])
 
+LookDetectAssistServeTrial = partial(
+    ActionSequence, action_factories=[LookAtPlate, DetectMorsels, do_assistance, Serve])
+LookGenerateAssistServeTrial = partial(
+    ActionSequence, action_factories=[LookAtPlate, GenerateDummyMorsels, do_assistance, Serve])
+
 
     
 
@@ -307,7 +313,11 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    gui = GuiHandler(base_config=base_config, start_trial_callback=LookDetectServeTrial,
+    if args.detection_sim:
+        trial_type = LookGenerateAssistServeTrial
+    else:
+        trial_type = LookDetectAssistServeTrial
+    gui = GuiHandler(base_config=base_config, start_trial_callback=trial_type,
                      quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
 
     # Main loop
