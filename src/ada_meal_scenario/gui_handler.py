@@ -6,9 +6,10 @@ import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 import traceback
 from adapy.futures import TimeoutError, CancelledError
-from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame
-from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
+from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
+from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame
+from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame
 
 import os
 import rospkg
@@ -66,34 +67,40 @@ class LoggingOptions(Tkinter.Frame, object):
             self, text="Logging Options", font=label_font)
         self.label.grid(row=0, sticky=Tkinter.E+Tkinter.W)
 
+
+        self.logging_frame = Tkinter.Frame(self)
         default_log_dir = os.path.join(rospkg.RosPack().get_path(
             'ada_meal_scenario'), 'trajectory_data')
         
         # choose top dir for logging
         self.data_root_var = Tkinter.StringVar(value=default_log_dir)
         self.data_root_label = Tkinter.Label(
-            self, textvariable=self.data_root_var)
-        self.data_root_label.grid(row=1, column=0, sticky=Tkinter.E+Tkinter.W)
-        self.data_root_button = Tkinter.Button(self, text='Select data directory', command=self._set_data_root)
-        self.data_root_button.grid(row=1, column=1, sticky=Tkinter.W)
+            self.logging_frame, textvariable=self.data_root_var, wraplength=200, justify=Tkinter.LEFT)
+        self.data_root_label.grid(row=0, column=0, sticky=Tkinter.W)
+        self.data_root_button = Tkinter.Button(self.logging_frame, text='Select data directory', command=self._set_data_root)
+        self.data_root_button.grid(row=0, column=1, sticky=Tkinter.W)
 
         # choose user id
         self.user_id_var = Tkinter.StringVar()
         self.update_next_user_id()
         self.user_id_var.trace("w", self._validate_user_id)
         self.user_id_entry = Tkinter.Entry(
-            self, textvariable=self.user_id_var)
-        self.user_id_entry.grid(row=2, column=0, sticky=Tkinter.E+Tkinter.W)
-        self.user_id_label = Tkinter.Label(self, text='User ID')
-        self.user_id_label.grid(row=2, column=1, sticky=Tkinter.W)
+            self.logging_frame, textvariable=self.user_id_var)
+        self.user_id_entry.grid(row=2, column=0, sticky=Tkinter.N+Tkinter.E+Tkinter.W)
+        self.user_id_label = Tkinter.Label(self.logging_frame, text='User ID')
+        self.user_id_label.grid(row=2, column=1, sticky=Tkinter.N+Tkinter.W)
+
+        self.logging_frame.grid(row=1, column=0, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
 
         self.user_id_orig_bg = self.user_id_entry.cget("bg")
 
         # additional logging options
         self.pupil_config = PupilRecorderConfigFrame(self)
-        self.pupil_config.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.pupil_config.grid(row=2, column=0, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
         self.zed_config = RemoteRecorderConfigFrame(self)
-        self.zed_config.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.zed_config.grid(row=2, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
+        self.rosbag_config = RosbagRecorderConfigFrame(self)
+        self.rosbag_config.grid(row=1, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
 
     def _set_data_root(self):
         data_root = tkFileDialog.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -120,13 +127,15 @@ class LoggingOptions(Tkinter.Frame, object):
         }
         base_res.update(self.pupil_config.get_config())
         base_res.update(self.zed_config.get_config())
+        base_res.update(self.rosbag_config.get_config())
         return base_res
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
         self.user_id_entry.configure(state=state)
         self.pupil_config.set_state(state=state)
-        self.zed_config.set_state(state)
+        self.zed_config.set_state(state=state)
+        self.rosbag_config.set_state(state=state)
 
     def update_next_user_id(self):
         # when we've finished a trial, we need to advance the user id

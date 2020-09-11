@@ -13,6 +13,7 @@ from ada_meal_scenario.action_sequence import make_async_mapper
 from ada_meal_scenario.assistance.assistance_config import ASSISTANCE_CONFIG_NAME
 from ada_meal_scenario.loggers.zed_remote_recorder import get_zed_remote_recorder
 from ada_meal_scenario.loggers.pupil_recorder import get_pupil_recorder
+from ada_meal_scenario.loggers.rosbag_recorder import get_rosbag_recorder
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -73,7 +74,6 @@ def get_prestab_position(env, robot, morsel, offsets=np.zeros((2, 1))):
 
 
 def check_ik_for_pose(env, robot, desired_ee_pose):
-    print('checking ik for {}'.format(desired_ee_pose))
     with robot:
         ik_filter_options = openravepy.IkFilterOptions.CheckEnvCollisions
         # first call FindIKSolution which is faster if it succeeds
@@ -150,6 +150,9 @@ def do_assistance(prev_result, config):
             if pupil_logger is not None:
                 loggers.append(pupil_logger)
 
+            rosbag_logger = get_rosbag_recorder(log_dir, config['logging'])
+            if rosbag_logger is not None:
+                loggers.append(rosbag_logger)
 
             class DebugLogger:
                 def __init__(self): pass
