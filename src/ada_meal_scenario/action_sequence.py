@@ -12,7 +12,7 @@ project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
 
 class ActionSequence(Future):
-    def __init__(self, action_factories=[], config=None):
+    def __init__(self, action_factories=[], prev_result=None, config=None):
         super(ActionSequence, self).__init__()
         self.current_action = None
         self.action_factories = deque(action_factories)
@@ -37,12 +37,12 @@ class ActionSequence(Future):
             logger.warning(
                 'Unable to cancel current action; waiting till it terminates to cancel')
 
-
     def _action_finished(self, action):
         # nonsense check
         assert action is self.current_action
         # make sure we ended the last one successfully
         try:
+            logger.debug('finished action {}'.format(action))
             result = action.result(0)
             # start the next action
             self._start_next_action(result)
@@ -67,6 +67,7 @@ class ActionSequence(Future):
 
         # run it   
         try:
+            logger.debug('running next action {}'.format(next_action_factory))
             self.current_action = next_action_factory(
                 prev_result=result, config=self.config)
             self.current_action.add_done_callback(self._action_finished)
@@ -77,10 +78,28 @@ class ActionSequence(Future):
             self.set_exception(ex)
 
 
-def defer_threaded(fn, args, kwargs):
+class ActionSequenceFactory:
+    def __init__(self, action_factories=[]):
+        self.action_factories = action_factories
+
+    def then(self, factory):
+        self.action_factories.append(factory)
+        return self # for chaining
+    
+    def __call__(self, *args, **kwargs):
+        return ActionSequence(self.action_factories, *args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return self.__call__(*args, **kwargs)
+
+
+
+
+def defer_threaded(fn, args=(), kwargs={}):
     future = Future()
 
     def run(*args, **kwargs):
+        print(args)
         try:
             future.set_result(fn(*args, **kwargs))
         except Exception as ex:
@@ -131,3 +150,23 @@ class NoOp(Future):
         self.set_result(result)
 
 
+def make_async_mapper(fn, itr):
+    # collect the inputs, initialize storage for the outputs
+    inputs = list(itr)
+    res_obj = [ None ] * len(inputs)
+
+    def make_func_runner(idx, inpt):
+        def run(prev_result=None, config=None):
+            future = defer_threaded(fn, inpt)
+            def update_result(fut):
+                res_obj[idx] = fut.result(0)
+            future.add_done_callback(update_result)
+            return future
+        return run
+    
+    action_factories = [ make_func_runner(idx, inpt) for idx, inpt in enumerate(inputs) ]
+    # make sure we actually return the result
+    def return_result(prev_result=None, config=None):
+        return NoOp(res_obj)
+    action_factories += [return_result]
+    return ActionSequenceFactory(action_factories=action_factories)

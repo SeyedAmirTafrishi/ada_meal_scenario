@@ -300,6 +300,9 @@ if __name__ == "__main__":
     parser.add_argument("--jaco", action="store_true", default=False, help="Using jaco robot")
     args = parser.parse_args(rospy.myargv()[1:]) # exclude roslaunch args
 
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
     base_config = {'env': env, 'robot': robot}
