@@ -97,12 +97,17 @@ class RosbagRecorderConfigFrame(tk.Frame, object):
 
         self.topics_add_var = tk.StringVar()
         self.topics_add_entry = tk.Entry(self, textvariable=self.topics_add_var)
+        self.topics_add_entry.bind("<Return>", self._add_topic)
         self.topics_add_button = tk.Button(self, text='Add', command=self._add_topic)
         self.topics_add_entry.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W)
         self.topics_add_button.grid(row=2, column=1, sticky=tk.W)
 
-    def _add_topic(self):
+    def _add_topic(self, _=None):
         topic = self.topics_add_var.get()
+
+        if topic in self.topics_listbox.get(0, tk.END):
+            # already exists
+            return
         # validate
         if not rosgraph.names.is_legal_name(topic):
             tk_msg.showerror(message='Topic {} is not a valid ROS topic'.format(topic))
@@ -112,6 +117,7 @@ class RosbagRecorderConfigFrame(tk.Frame, object):
         # insert it at the end (todo maybe, sort them alphabetically or something?)
         self.topics_listbox.insert(tk.END, topic)
         self.topics_listbox.selection_set(tk.END)
+        self.topics_listbox.see(tk.END)
 
     def get_config(self):
         return { ROSBAG_RECORDER_CONFIG_NAME: {
