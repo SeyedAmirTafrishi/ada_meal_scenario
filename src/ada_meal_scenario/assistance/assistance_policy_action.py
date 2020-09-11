@@ -11,6 +11,7 @@ from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper
 from ada_meal_scenario.assistance.assistance_config import ASSISTANCE_CONFIG_NAME
+from ada_meal_scenario.loggers.zed_remote_recorder import get_zed_remote_recorder
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -129,9 +130,32 @@ def do_assistance(prev_result, config):
         #         yaml.dump({m.GetName(): m.GetTransform().tolist()
         #                    for m in morsel_bodies}, f)
 
+        # collect async loggers
+        # AdaHandler handles logging its own data in-thread
+        # but loggers that just need to start and stop are passed as separate objects
+        log_dir = config['logging']['data_dir']
+        if log_dir is not None:
+            # make sure the directory exists
+            if not os.path.isdir(log_dir):
+                os.makedirs(log_dir)
+
+            loggers = []
+
+            zed_logger = get_zed_remote_recorder(log_dir, config['logging'])
+            if zed_logger is not None:
+                loggers.append(zed_logger)
+
+
+            class DebugLogger:
+                def __init__(self): pass
+                def start(self): print('Starting debug logger')
+                def stop(self): print('Stopping debug logger')
+            loggers.append(DebugLogger())
+
         return AdaHandler(
             config['env'], config['robot'],
-            AdaHandlerConfig.create(goals=goals, **config[ASSISTANCE_CONFIG_NAME]))
+            AdaHandlerConfig.create(goals=goals, **config[ASSISTANCE_CONFIG_NAME]),
+            loggers)
 
 
     # Actually make sure we can do IK for all the goals

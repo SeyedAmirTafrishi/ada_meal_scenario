@@ -6,6 +6,7 @@ import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 import traceback
 from adapy.futures import TimeoutError, CancelledError
+from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
 
 import os
@@ -71,7 +72,6 @@ class LoggingOptions(Tkinter.Frame, object):
         self.data_root_var = Tkinter.StringVar(value=default_log_dir)
         self.data_root_label = Tkinter.Label(
             self, textvariable=self.data_root_var)
-        print('var: {}'.format(self.data_root_var.get()))
         self.data_root_label.grid(row=1, column=0, sticky=Tkinter.E+Tkinter.W)
         self.data_root_button = Tkinter.Button(self, text='Select data directory', command=self._set_data_root)
         self.data_root_button.grid(row=1, column=1, sticky=Tkinter.W)
@@ -94,26 +94,8 @@ class LoggingOptions(Tkinter.Frame, object):
             self, text="Pupil Labs recording", variable=self.pupil_labs_recording_var)
         self.pupil_labs_recording.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
 
-        self.zed_remote_recording_var = Tkinter.BooleanVar()
-        self.zed_remote_recording = Tkinter.Checkbutton(
-            self, text='ZED Remote recording', variable=self.zed_remote_recording_var)
-        self.zed_remote_recording.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
-        self.zed_remote_recording_avail = LoggingOptions.check_zed_remote_available()
-        if not self.zed_remote_recording_avail:
-            self.zed_remote_recording.configure(state=Tkinter.DISABLED)
-            self.zed_remote_recording_tooltip = ToolTip(
-                self.zed_remote_recording, 'No ZED package found; ZED videos will NOT be recorded. Install the zed_ros_recording package to fix this error.')
-
-
-
-    @staticmethod
-    def check_zed_remote_available():
-        try:
-            from zed_recorder.srv import ZedRecord, ZedRecordRequest
-            return True
-        except ImportError:
-            return False
-
+        self.zed_config = RemoteRecorderConfigFrame(self)
+        self.zed_config.grid(row=4, column=0, sticky=Tkinter.E+Tkinter.W)
 
     def _set_data_root(self):
         data_root = tkFileDialog.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -135,20 +117,18 @@ class LoggingOptions(Tkinter.Frame, object):
         data_dir = self._get_data_dir()
         if os.path.exists(data_dir):
             raise ValueError("Directory exists: {}".format(data_dir))
-        return {
+        base_res = {
             'data_dir': data_dir,
             'record_pupil': self.pupil_labs_recording_var.get(),
-            'record_zed_remote': self.zed_remote_recording_var.get()
         }
+        base_res.update(self.zed_config.get_config())
+        return base_res
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
         self.user_id_entry.configure(state=state)
         self.pupil_labs_recording.configure(state=state)
-
-        # don't reset the state if we have no zed
-        if self.zed_remote_recording_avail:
-            self.zed_remote_recording.configure(state=state)
+        self.zed_config.set_state(state)
 
     def update_next_user_id(self):
         # when we've finished a trial, we need to advance the user id
