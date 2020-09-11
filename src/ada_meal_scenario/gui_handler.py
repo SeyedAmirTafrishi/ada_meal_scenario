@@ -7,6 +7,7 @@ from functools import partial
 import traceback
 from adapy.futures import TimeoutError, CancelledError
 from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame
+from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
 
 import os
@@ -89,13 +90,10 @@ class LoggingOptions(Tkinter.Frame, object):
         self.user_id_orig_bg = self.user_id_entry.cget("bg")
 
         # additional logging options
-        self.pupil_labs_recording_var = Tkinter.BooleanVar()
-        self.pupil_labs_recording = Tkinter.Checkbutton(
-            self, text="Pupil Labs recording", variable=self.pupil_labs_recording_var)
-        self.pupil_labs_recording.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
-
+        self.pupil_config = PupilRecorderConfigFrame(self)
+        self.pupil_config.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
         self.zed_config = RemoteRecorderConfigFrame(self)
-        self.zed_config.grid(row=4, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.zed_config.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
 
     def _set_data_root(self):
         data_root = tkFileDialog.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -118,16 +116,16 @@ class LoggingOptions(Tkinter.Frame, object):
         if os.path.exists(data_dir):
             raise ValueError("Directory exists: {}".format(data_dir))
         base_res = {
-            'data_dir': data_dir,
-            'record_pupil': self.pupil_labs_recording_var.get(),
+            'data_dir': data_dir
         }
+        base_res.update(self.pupil_config.get_config())
         base_res.update(self.zed_config.get_config())
         return base_res
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
         self.user_id_entry.configure(state=state)
-        self.pupil_labs_recording.configure(state=state)
+        self.pupil_config.set_state(state=state)
         self.zed_config.set_state(state)
 
     def update_next_user_id(self):

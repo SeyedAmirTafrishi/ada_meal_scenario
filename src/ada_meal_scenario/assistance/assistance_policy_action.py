@@ -12,6 +12,7 @@ from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper
 from ada_meal_scenario.assistance.assistance_config import ASSISTANCE_CONFIG_NAME
 from ada_meal_scenario.loggers.zed_remote_recorder import get_zed_remote_recorder
+from ada_meal_scenario.loggers.pupil_recorder import get_pupil_recorder
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -144,6 +145,10 @@ def do_assistance(prev_result, config):
             zed_logger = get_zed_remote_recorder(log_dir, config['logging'])
             if zed_logger is not None:
                 loggers.append(zed_logger)
+
+            pupil_logger = get_pupil_recorder(log_dir, config['logging'])
+            if pupil_logger is not None:
+                loggers.append(pupil_logger)
 
 
             class DebugLogger:
