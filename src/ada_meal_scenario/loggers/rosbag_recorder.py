@@ -5,6 +5,7 @@ import rosgraph
 import rospy
 import signal
 import subprocess
+import sys
 import time
 
 try:
@@ -16,7 +17,6 @@ except ImportError:
 from ada_meal_scenario.action_sequence import futurize
 
 ROSBAG_RECORDER_CONFIG_NAME = 'rosbag'
-_ROSBAG_NODE_NAME = 'rosbag_recorder'
 
 class RosbagRecorder:
     def __init__(self, log_dir, topics):
@@ -37,22 +37,25 @@ class RosbagRecorder:
         # run the rosbag collection in a different process
         # for (1) latency (2) ease of connecting to multiple topics
         # would be nice to make this in-process or at least in python (multiprocessing instead of subprocess)
-        proc_args = [ 'rosbag', 'record', '-O', self.filename] + self.topics + ['__name:={}'.format(_ROSBAG_NODE_NAME)]
-        self._proc = pexpect.spawn(' '.join(proc_args))
+        self._node_name = rosgraph.names.anonymous_name('rosbag_recorder')
+        proc_args = 'rosbag record -O {filename} {topics} __name:={name}'.format(filename=self.filename, topics=' '.join(self.topics), name=self._node_name)
+        rospy.loginfo('Starting rosbag process with command %s', proc_args)
+        self._proc = pexpect.spawn(proc_args, logfile=sys.stdout)
 
         # wait for rosbag to be available
         # nb: this is terrible. melodic introduces a pub message that goes out when the recording starts
         try:
-            self._proc.expect_exact('Recording', timeout=10.)
+            self._proc.expect_exact('Recording', timeout=30.)  # this timeout is probably way too long but it's what i need for testing on docker...
         except pexpect.TIMEOUT:
             rospy.logerr('Failed to start rosbag recording!')
             self._proc.terminate(force=True)
             self._proc = None
+            self._node_name = None
 
     def stop(self):
         # first try to stop it via ros
         try:
-            subprocess.check_call(['rosnode', 'kill', _ROSBAG_NODE_NAME])
+            subprocess.check_call(['rosnode', 'kill', self._node_name])
             self._proc.expect_exact(['Shutting down', pexpect.EOF, pexpect.TIMEOUT], timeout=0.5)
         except subprocess.CalledProcessError as e:
             rospy.logwarn('Failed to shut down rosbag process: %s', str(e))
@@ -63,6 +66,7 @@ class RosbagRecorder:
                 rospy.logerr('Failed to terminate rosbag process!')
 
         self._proc = None
+        self._node_name = None
     
     def __del__(self):
         # clean up extra process if necessasry
