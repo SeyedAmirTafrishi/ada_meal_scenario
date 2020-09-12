@@ -10,7 +10,7 @@ from ada_assistance_policy.AdaHandler import AdaHandler, AdaHandlerConfig
 from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper
-from ada_meal_scenario.assistance.assistance_config import ASSISTANCE_CONFIG_NAME
+from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config
 from ada_meal_scenario.loggers.zed_remote_recorder import get_zed_remote_recorder
 from ada_meal_scenario.loggers.pupil_recorder import get_pupil_recorder
 from ada_meal_scenario.loggers.rosbag_recorder import get_rosbag_recorder
@@ -84,7 +84,6 @@ def check_ik_for_pose(env, robot, desired_ee_pose):
             if ik_sols is None:
                 return False
     return True
-
 
 
 def do_assistance(prev_result, config):
@@ -162,7 +161,7 @@ def do_assistance(prev_result, config):
 
         return AdaHandler(
             config['env'], config['robot'],
-            AdaHandlerConfig.create(goals=goals, **config[ASSISTANCE_CONFIG_NAME]),
+            AdaHandlerConfig.create(goals=goals, **get_ada_handler_config(config)),
             loggers)
 
 

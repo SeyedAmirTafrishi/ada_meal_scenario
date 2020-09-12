@@ -43,10 +43,10 @@ class RosbagRecorder:
         # wait for rosbag to be available
         # nb: this is terrible. melodic introduces a pub message that goes out when the recording starts
         try:
-            self._proc.expect_exact('Recording', timeout=5.)
+            self._proc.expect_exact('Recording', timeout=10.)
         except pexpect.TIMEOUT:
-            rospy.logerror('Failed to start rosbag recording!')
-            self._proc.terminate()
+            rospy.logerr('Failed to start rosbag recording!')
+            self._proc.terminate(force=True)
             self._proc = None
 
     def stop(self):
@@ -60,7 +60,7 @@ class RosbagRecorder:
         if self._proc.isalive():
             rospy.logwarn('Failed to shut down rosbag process, terminating...')
             if not self._proc.terminate(force=True):
-                rospy.logerror('Failed to terminate rosbag process!')
+                rospy.logerr('Failed to terminate rosbag process!')
 
         self._proc = None
     
@@ -71,10 +71,11 @@ class RosbagRecorder:
 
 
 class RosbagRecorderConfigFrame(tk.Frame, object):
-    def __init__(self, parent):
+    def __init__(self, parent, initial_config={}):
         super(RosbagRecorderConfigFrame, self).__init__(parent)
+        initial_config = initial_config.get(ROSBAG_RECORDER_CONFIG_NAME, {})
 
-        self.enabled_var = tk.BooleanVar()
+        self.enabled_var = tk.BooleanVar(value=initial_config.get('enabled', False))
         self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var)
         self.enabled_label = tk.Label(self, text="Enable ROS Bag recording")
         self.enabled_checkbox.grid(row=0, column=0, sticky=tk.E+tk.W)
@@ -91,9 +92,14 @@ class RosbagRecorderConfigFrame(tk.Frame, object):
         self.topics_label.grid(row=1, column=1, sticky=tk.N+tk.W)
 
         # initialize the topics
-        cur_topics = rospy.get_published_topics()
-        for topic, _ in cur_topics:
+        cur_topics = set(topic for topic, _ in rospy.get_published_topics())
+        sel_topics = initial_config.get('topics', {})
+        cur_topics.update(sel_topics)
+
+        for topic in sorted(cur_topics):
             self.topics_listbox.insert(tk.END, topic)
+            if topic in sel_topics:
+                self.topics_listbox.selection_set(tk.END)
 
         self.topics_add_var = tk.StringVar()
         self.topics_add_entry = tk.Entry(self, textvariable=self.topics_add_var)

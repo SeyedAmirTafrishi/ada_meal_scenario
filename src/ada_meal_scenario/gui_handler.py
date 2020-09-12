@@ -1,10 +1,12 @@
 # gui for interacting with the ada_meal_scenario
 # used to select the method and user input device
 
+import os
 import Tkinter
 import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 import traceback
+import yaml
 from adapy.futures import TimeoutError, CancelledError
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
@@ -53,12 +55,13 @@ class ToolTip(object):
             self.tw.destroy()
 
 
-
+LOGGING_CONFIG_NAME = 'logging'
 
 class LoggingOptions(Tkinter.Frame, object):
     __USER_ID_INVALID_BG__ = "#cc0000"
-    def __init__(self, parent):
+    def __init__(self, parent, initial_config={}):
         super(LoggingOptions, self).__init__(parent)
+        initial_config = initial_config.get(LOGGING_CONFIG_NAME, {})
 
         label_font = tkFont.nametofont("TkDefaultFont").copy()
         label_font.configure(weight='bold')
@@ -69,11 +72,11 @@ class LoggingOptions(Tkinter.Frame, object):
 
 
         self.logging_frame = Tkinter.Frame(self)
-        default_log_dir = os.path.join(rospkg.RosPack().get_path(
-            'ada_meal_scenario'), 'trajectory_data')
+        base_dir = initial_config.get('base_dir', 
+                os.path.join(rospkg.RosPack().get_path('ada_meal_scenario'), 'trajectory_data'))
         
         # choose top dir for logging
-        self.data_root_var = Tkinter.StringVar(value=default_log_dir)
+        self.data_root_var = Tkinter.StringVar(value=base_dir)
         self.data_root_label = Tkinter.Label(
             self.logging_frame, textvariable=self.data_root_var, wraplength=200, justify=Tkinter.LEFT)
         self.data_root_label.grid(row=0, column=0, sticky=Tkinter.W)
@@ -95,11 +98,11 @@ class LoggingOptions(Tkinter.Frame, object):
         self.user_id_orig_bg = self.user_id_entry.cget("bg")
 
         # additional logging options
-        self.pupil_config = PupilRecorderConfigFrame(self)
+        self.pupil_config = PupilRecorderConfigFrame(self, initial_config)
         self.pupil_config.grid(row=2, column=0, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
-        self.zed_config = RemoteRecorderConfigFrame(self)
+        self.zed_config = RemoteRecorderConfigFrame(self, initial_config)
         self.zed_config.grid(row=2, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
-        self.rosbag_config = RosbagRecorderConfigFrame(self)
+        self.rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
         self.rosbag_config.grid(row=1, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
 
     def _set_data_root(self):
@@ -123,12 +126,13 @@ class LoggingOptions(Tkinter.Frame, object):
         if os.path.exists(data_dir):
             raise ValueError("Directory exists: {}".format(data_dir))
         base_res = {
+            'base_dir': self.data_root_var.get(),
             'data_dir': data_dir
         }
         base_res.update(self.pupil_config.get_config())
         base_res.update(self.zed_config.get_config())
         base_res.update(self.rosbag_config.get_config())
-        return base_res
+        return { LOGGING_CONFIG_NAME: base_res }
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
@@ -144,11 +148,20 @@ class LoggingOptions(Tkinter.Frame, object):
         self.user_id_var.set(default_user_id)
 
 
+def _load_initial_config(fn):
+    if fn is not None and os.path.isfile(fn):
+        with open(fn, 'r') as f:
+            return yaml.load(f)
+    else:
+        return {}
+
 class GuiHandler(object):
-    def __init__(self, base_config, start_trial_callback, quit_callback):
+    def __init__(self, start_trial_callback, quit_callback, initial_config_file=None):
+        self.config_file = os.path.abspath(initial_config_file) if initial_config_file is not None else None
+        initial_config = _load_initial_config(initial_config_file)
+        
         self.master = Tkinter.Tk()
 
-        self.base_config = base_config
         self.start_trial_callback = start_trial_callback
         self.quit_callback = quit_callback
 
@@ -161,16 +174,19 @@ class GuiHandler(object):
 
 
         sticky = Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S
-        self.assistance_config = AssistanceConfigFrame(self.master)
+        self.assistance_config = AssistanceConfigFrame(self.master, initial_config)
         self.assistance_config.grid(row=0, column=0, columnspan=4, sticky=sticky)
 
-        self.logging_options = LoggingOptions(self.master)
+        self.logging_options = LoggingOptions(self.master, initial_config)
         self.logging_options.grid(
-            row=1, column=1, padx=2, pady=2, columnspan=3, sticky=sticky)
+            row=1, column=1, padx=2, pady=2, columnspan=3, rowspan=2, sticky=sticky)
 
+
+        self.save_config_button = Tkinter.Button(self.master, text='Save config', command=self._save_config)
+        self.save_config_button.grid(row=1, column=0, sticky=Tkinter.N+Tkinter.W, pady=15)
 
         self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(row=1, column=0, sticky=sticky, padx=2, pady=2)
+        self.start_frame.grid(row=2, column=0, sticky=Tkinter.W+Tkinter.S, padx=2, pady=2)
 
         self.start_button = Tkinter.Button(self.start_frame,
                                            text="Start Next Trial",
@@ -189,7 +205,7 @@ class GuiHandler(object):
         self.status_var = Tkinter.StringVar(value='Ready')
         self.status_bar = Tkinter.Label(
             self.master, textvariable=self.status_var, bd=1, relief=Tkinter.SUNKEN, anchor=Tkinter.W)
-        self.status_bar.grid(row=2, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
+        self.status_bar.grid(row=3, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
 
         # configure enabled/disabled for waiting for a trial
         self.trial = None
@@ -251,8 +267,7 @@ class GuiHandler(object):
     def _start_button_callback(self):
         # get the config
         try:
-            cfg = self.base_config.copy()
-            cfg.update(self.get_selected_options())
+            cfg = self.get_selected_options()
         except ValueError as e:
             tkMessageBox.showerror(message=str(e))
             return
@@ -273,6 +288,15 @@ class GuiHandler(object):
         # when the cancel is successful, the trial will call its finished_callback
         # which will reset the gui
 
+    def _save_config(self):
+        if self.config_file is None:
+            # prompt for it
+            self.config_file = tkFileDialog.asksaveasfilename(title='Select location to save config file', defaultextension='.yaml')
+        if self.config_file is not None:
+            with open(self.config_file, 'w') as f:
+                yaml.dump(self.get_selected_options(), f)
+            self.status_var.set('Config file saved to {}'.format(self.config_file))
+
 
     def _quit_button_callback(self):
         self.quit_callback()
@@ -280,7 +304,7 @@ class GuiHandler(object):
     def get_selected_options(self):
         to_ret = dict()
         to_ret.update(self.assistance_config.get_config())
-        to_ret['logging'] = self.logging_options.get_config()
+        to_ret.update(self.logging_options.get_config())
         return to_ret
 
 

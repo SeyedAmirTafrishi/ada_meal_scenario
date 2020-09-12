@@ -26,16 +26,18 @@ def ping_endpoint(endpt):
 
 
 class PupilRecorderConfigFrame(tk.Frame, object):
-    def __init__(self, parent):
+    def __init__(self, parent, initial_config={}):
         super(PupilRecorderConfigFrame, self).__init__(parent)
 
-        self.enabled_var = tk.BooleanVar()
+        initial_config = initial_config.get(PUPIL_CONFIG_NAME, {})
+
+        self.enabled_var = tk.BooleanVar(value=initial_config.get('enabled', False))
         self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var)
         self.enabled_label = tk.Label(self, text="Enable Pupil Labs recording")
         self.enabled_checkbox.grid(row=0, column=0, sticky=tk.E+tk.W)
         self.enabled_label.grid(row=0, column=1, sticky=tk.W)
 
-        self.endpoint_var = tk.StringVar(value='tcp://127.0.0.1:50020')
+        self.endpoint_var = tk.StringVar(value=initial_config.get('endpoint', 'tcp://127.0.0.1:50020'))
         self.endpoint_entry = tk.Entry(self, textvariable=self.endpoint_var)
         self.endpoint_label = tk.Label(self, text='Pupil ZMQ endpoint')
         self.endpoint_entry.grid(row=1, column=0, sticky=tk.W+tk.E)

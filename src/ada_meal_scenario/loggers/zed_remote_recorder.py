@@ -51,10 +51,11 @@ class RemoteRecorder:
 
 
 class RemoteRecorderConfigFrame(tk.Frame, object):
-    def __init__(self, parent):
+    def __init__(self, parent, initial_config):
         super(RemoteRecorderConfigFrame, self).__init__(parent)
+        initial_config = initial_config.get(ZED_RECORDER_CONFIG_NAME, {})
 
-        self.enabled_var = tk.BooleanVar(value=AVAILABLE)
+        self.enabled_var = tk.BooleanVar(value=AVAILABLE and initial_config.get('enabled', False))
         self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var,
                 state=tk.NORMAL if AVAILABLE else tk.DISABLED)
         self.enabled_label = tk.Label(self, text="Enable ZED recording")
@@ -62,7 +63,7 @@ class RemoteRecorderConfigFrame(tk.Frame, object):
         self.enabled_label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
 
 
-        self.topic_var = tk.StringVar(value='/zed_remote_recorder' if AVAILABLE else '')
+        self.topic_var = tk.StringVar(value=initial_config.get('topic', '/zed_remote_recorder'))
         self.topic_entry = tk.Entry(self, textvariable=self.topic_var, state=tk.NORMAL if AVAILABLE else tk.DISABLED)
         self.topic_label = tk.Label(self, text='Topic for ZED remote recorder service')
         self.topic_entry.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
@@ -75,7 +76,7 @@ class RemoteRecorderConfigFrame(tk.Frame, object):
         }}
 
     def set_state(self, state):
-        if AVAILABLE: # if it's not available, we never want to disable it
+        if AVAILABLE: # if it's not available, we never want to enable it
             self.enabled_checkbox.configure(state=state)
             self.topic_entry.configure(state=state)
                 

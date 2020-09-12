@@ -5,6 +5,7 @@ import numpy as np
 from catkin.find_in_workspaces import find_in_workspaces
 from std_msgs.msg import String
 from functools import partial
+import yaml
 
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
@@ -298,6 +299,7 @@ if __name__ == "__main__":
     parser.add_argument("--viewer", type=str, default='interactivemarker', help="The viewer to load")
     parser.add_argument("--detection-sim", action="store_true", help="Simulate detection of morsal")
     parser.add_argument("--jaco", action="store_true", default=False, help="Using jaco robot")
+    parser.add_argument("--load-config", "-l", default="./config.yaml", help="Load initial config from file")
     args = parser.parse_args(rospy.myargv()[1:]) # exclude roslaunch args
 
     if args.debug:
@@ -305,7 +307,6 @@ if __name__ == "__main__":
 
     sim = not args.real
     env, robot = setup(sim=sim, viewer=args.viewer, debug=args.debug)
-    base_config = {'env': env, 'robot': robot}
 
 
     #start by going to ada_meal_scenario_servingConfiguration
@@ -316,12 +317,18 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    if args.detection_sim:
-        trial_type = LookGenerateAssistServeTrial
-    else:
-        trial_type = LookDetectAssistServeTrial
-    gui = GuiHandler(base_config=base_config, start_trial_callback=trial_type,
-                     quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"))
+    def make_trial(config):
+        if args.detection_sim:
+            trial_type = LookGenerateAssistServeTrial
+        else:
+            trial_type = LookDetectAssistServeTrial
+        config['env'] = env
+        config['robot'] = robot
+        return trial_type(config=config)
+
+    gui = GuiHandler(start_trial_callback=make_trial,
+                     quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"),
+                     initial_config_file=args.load_config)
 
     # Main loop
     while not rospy.is_shutdown():
