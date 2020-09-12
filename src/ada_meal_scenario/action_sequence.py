@@ -97,15 +97,13 @@ class ActionSequenceFactory:
 
 def defer_threaded(fn, args=(), kwargs={}):
     future = Future()
-
     def run(*args, **kwargs):
-        print(args)
         try:
             future.set_result(fn(*args, **kwargs))
         except Exception as ex:
             future.set_exception(ex)
     future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
-    future._handle.daemon = True
+    future._handle.daemon = True  # not part of constructor until python3.3
     future._handle.start()
     return future
 

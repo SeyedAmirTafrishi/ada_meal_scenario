@@ -109,7 +109,6 @@ def do_assistance(prev_result, config):
 
     logging.debug('got {} morsels'.format(len(goals)))
     def run_assistance_on_goals(prev_result, config):
-        print('got result: {}'.format(prev_result))
         # prev_result is returned by make_async_mapper below
         # which is a list of results of check_ik_for_pose results
         assert len(prev_result) == len(goals)
@@ -152,12 +151,6 @@ def do_assistance(prev_result, config):
             rosbag_logger = get_rosbag_recorder(log_dir, config['logging'])
             if rosbag_logger is not None:
                 loggers.append(rosbag_logger)
-
-            class DebugLogger:
-                def __init__(self): pass
-                def start(self): print('Starting debug logger')
-                def stop(self): print('Stopping debug logger')
-            loggers.append(DebugLogger())
 
         return AdaHandler(
             config['env'], config['robot'],
