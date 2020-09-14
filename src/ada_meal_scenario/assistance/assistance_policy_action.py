@@ -77,10 +77,12 @@ def check_ik_for_pose(env, robot, desired_ee_pose):
     with robot:
         ik_filter_options = openravepy.IkFilterOptions.CheckEnvCollisions
         # first call FindIKSolution which is faster if it succeeds
-        ik_sol = robot.GetActiveManipulator().FindIKSolution(desired_ee_pose, ik_filter_options)
+        # we want to pass releasegil so the gui doesn't freeze
+        # but for whatever reason the py overload doesn't work unless we pass in [] for free_pos
+        ik_sol = robot.GetActiveManipulator().FindIKSolution(desired_ee_pose, [], ik_filter_options, False, True)  # release GIL so GUI doesn't freeze
         # if it fails, call FindIKSolutions, which is slower but samples other start configurations
         if ik_sol is None:
-            ik_sols = robot.GetActiveManipulator().FindIKSolutions(desired_ee_pose, ik_filter_options)
+            ik_sols = robot.GetActiveManipulator().FindIKSolutions(desired_ee_pose, [], ik_filter_options, False, True)  # release GIL so GUI doesn't freeze
             if ik_sols is None:
                 return False
     return True
