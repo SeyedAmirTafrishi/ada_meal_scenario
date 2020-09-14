@@ -30,8 +30,9 @@ def clear_all_morsels(env):
             env.RemoveKinBody(prev_morsel)
 
 class DetectGoals(Future):
-    def __init__(self, goal_tracker_cls, detection_topic, detection_msg, prev_result=None, config=None):
+    def __init__(self, goal_tracker_cls, detection_topic, detection_msg, prev_result=None, config=None, status_cb=None):
         super(DetectGoals, self).__init__()
+        status_cb("Detecting goals")
         self.env = config['env']
         self.robot = config['robot']
         clear_all_morsels(self.env)
@@ -74,7 +75,7 @@ class DetectGoals(Future):
 
 
 @futurize(blocking=True)
-def GenerateDummyMorsels(prev_result=None, config=None, num_morsels=3):
+def GenerateDummyMorsels(prev_result=None, config=None, status_cb=None, num_morsels=3):
     clear_all_morsels(config['env'])
     morsels = []
     for i in range(num_morsels):
@@ -120,7 +121,7 @@ class MorselDetector(object):
         self.dist_above_table = 0.03
        
     def update(self, msg):
-        logger.info('Received detection')
+        logger.debug('Received detection')
         obj =  json.loads(msg.data)
         pts_arr = obj['pts3d']
         morsel_positions = numpy.asarray(pts_arr)

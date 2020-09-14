@@ -86,8 +86,8 @@ def check_ik_for_pose(env, robot, desired_ee_pose):
     return True
 
 
-def do_assistance(prev_result, config):
-    logging.debug('starting assistance function')
+def do_assistance(prev_result, config, status_cb):
+    status_cb('Preparing assistance')
     env = config['env']
     robot = config['robot']
 
@@ -108,7 +108,7 @@ def do_assistance(prev_result, config):
     ]
 
     logging.debug('got {} morsels'.format(len(goals)))
-    def run_assistance_on_goals(prev_result, config):
+    def run_assistance_on_goals(prev_result, config, status_cb):
         # prev_result is returned by make_async_mapper below
         # which is a list of results of check_ik_for_pose results
         assert len(prev_result) == len(goals)
@@ -152,6 +152,7 @@ def do_assistance(prev_result, config):
             if rosbag_logger is not None:
                 loggers.append(rosbag_logger)
 
+        status_cb('Starting assistance')
         return AdaHandler(
             config['env'], config['robot'],
             AdaHandlerConfig.create(goals=goals, **get_ada_handler_config(config)),
@@ -163,4 +164,4 @@ def do_assistance(prev_result, config):
     return make_async_mapper(check_ik_for_pose, 
                     ( (env, robot, tf) for tf in desired_tfs) 
                 ).then(run_assistance_on_goals
-                ).run(config=config)
+                ).run(config=config, status_cb=status_cb)

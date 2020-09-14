@@ -10,7 +10,7 @@ import yaml
 from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
-from ada_meal_scenario.action_sequence import ActionSequence, futurize
+from ada_meal_scenario.action_sequence import LoggedActionSequence, futurize
 from ada_meal_scenario.gui_handler import GuiHandler
 from ada_meal_scenario.trajectory_actions import LookAtPlate, Serve
 from ada_meal_scenario.detect_goals import GenerateDummyMorsels, DetectMorsels
@@ -254,9 +254,9 @@ def ResetTrial(robot):
 
 
 class DummyTask(adapy.futures.Future):
-    def __init__(self, prev_result, config):
+    def __init__(self, prev_result, config, status_cb):
         super(DummyTask, self).__init__()
-        print('Starting dummy task')
+        status_cb('Starting dummy task')
         self.timer = rospy.Timer(rospy.Duration(3.), lambda _: self.set_result(None), oneshot=True)
 
     def cancel(self):
@@ -270,21 +270,22 @@ def error_task(prev_result, config):
         return DummyTask(prev_result, config)
 
 
-DummyTrial = partial(ActionSequence, action_factories=[DummyTask, error_task])
+
+DummyTrial = partial(LoggedActionSequence, action_factories=[DummyTask, error_task])
 LookThenServeTrial = partial(
-    ActionSequence, action_factories=[LookAtPlate, Serve])
+    LoggedActionSequence, action_factories=[LookAtPlate, Serve])
 
 @futurize(blocking=True)
 def PrintResult(prev_result, config):
     rospy.loginfo(prev_result)
 
 LookDetectServeTrial = partial(
-    ActionSequence, action_factories=[LookAtPlate, DetectMorsels, PrintResult, Serve])
+    LoggedActionSequence, action_factories=[LookAtPlate, DetectMorsels, PrintResult, Serve])
 
 LookDetectAssistServeTrial = partial(
-    ActionSequence, action_factories=[LookAtPlate, DetectMorsels, do_assistance, Serve])
+    LoggedActionSequence, action_factories=[LookAtPlate, DetectMorsels, do_assistance, Serve])
 LookGenerateAssistServeTrial = partial(
-    ActionSequence, action_factories=[LookAtPlate, GenerateDummyMorsels, do_assistance, Serve])
+    LoggedActionSequence, action_factories=[LookAtPlate, GenerateDummyMorsels, do_assistance, Serve])
 
 
     
@@ -296,9 +297,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser('Ada meal scenario')
     parser.add_argument("--debug", action="store_true", help="Run with debug")
     parser.add_argument("--real", action="store_true", help="Run on real robot (not simulation)")
-    parser.add_argument("--viewer", type=str, default='interactivemarker', help="The viewer to load")
+    parser.add_argument("--viewer", default='interactivemarker', help="The viewer to load")
     parser.add_argument("--detection-sim", action="store_true", help="Simulate detection of morsal")
-    parser.add_argument("--jaco", action="store_true", default=False, help="Using jaco robot")
+    parser.add_argument("--jaco", action="store_true", help="Using jaco robot")
     parser.add_argument("--load-config", "-l", default="./config.yaml", help="Load initial config from file")
     args = parser.parse_args(rospy.myargv()[1:]) # exclude roslaunch args
 
@@ -317,14 +318,14 @@ if __name__ == "__main__":
         robot.PlanToNamedConfiguration('ada_meal_scenario_servingConfiguration', execute=True)
 
     # Set up the GUI
-    def make_trial(config):
+    def make_trial(config, status_cb):
         if args.detection_sim:
             trial_type = LookGenerateAssistServeTrial
         else:
             trial_type = LookDetectAssistServeTrial
         config['env'] = env
         config['robot'] = robot
-        return trial_type(config=config)
+        return trial_type(config=config, status_cb=status_cb)
 
     gui = GuiHandler(start_trial_callback=make_trial,
                      quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"),

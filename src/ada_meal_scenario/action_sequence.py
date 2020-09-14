@@ -12,11 +12,12 @@ project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
 
 class ActionSequence(Future):
-    def __init__(self, action_factories=[], prev_result=None, config=None):
+    def __init__(self, action_factories, prev_result=None, config={}, status_cb=lambda _: None):
         super(ActionSequence, self).__init__()
         self.current_action = None
         self.action_factories = deque(action_factories)
         self.config = config
+        self.status_cb = status_cb if status_cb is not None else lambda _: None
 
         # start the first action
         self._start_next_action()
@@ -69,13 +70,28 @@ class ActionSequence(Future):
         try:
             logger.debug('running next action {}'.format(next_action_factory))
             self.current_action = next_action_factory(
-                prev_result=result, config=self.config)
+                prev_result=result, config=self.config, status_cb=self.status_cb)
             self.current_action.add_done_callback(self._action_finished)
         except Exception as ex:
             # give full info in the console
             # need to do it here bc re-throwing it in a different thread chances the traceback
             traceback.print_exc()
             self.set_exception(ex)
+
+
+class LoggedActionSequence(ActionSequence):
+    """
+    Overload method of ActionSequence to provide status updates to (1) rospy logging (2) ros topic (3) supplied cb (used for gui)
+    """
+    def __init__(self, action_factories, prev_result=None, config={}, status_cb=lambda _: None):
+        self.pub = rospy.Publisher(config.get('status_topic', 'ada_tasks'), String, queue_size=10)
+        self._status_cb = status_cb
+        super(LoggedActionSequence, self).__init__(action_factories, prev_result, config, self.set_status)
+
+    def set_status(self, status):
+        self.pub.publish(status)
+        rospy.loginfo(status)
+        self._status_cb(status)
 
 
 class ActionSequenceFactory:
@@ -154,7 +170,7 @@ def make_async_mapper(fn, itr):
     res_obj = [ None ] * len(inputs)
 
     def make_func_runner(idx, inpt):
-        def run(prev_result=None, config=None):
+        def run(*args, **kwargs):
             future = defer_threaded(fn, inpt)
             def update_result(fut):
                 res_obj[idx] = fut.result(0)
@@ -164,7 +180,7 @@ def make_async_mapper(fn, itr):
     
     action_factories = [ make_func_runner(idx, inpt) for idx, inpt in enumerate(inputs) ]
     # make sure we actually return the result
-    def return_result(prev_result=None, config=None):
+    def return_result(*args, **kwargs):
         return NoOp(res_obj)
     action_factories += [return_result]
     return ActionSequenceFactory(action_factories=action_factories)

@@ -7,6 +7,7 @@ import tkFont, tkFileDialog, tkMessageBox
 from functools import partial
 import traceback
 import yaml
+from collections import deque
 from adapy.futures import TimeoutError, CancelledError
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
@@ -206,6 +207,7 @@ class GuiHandler(object):
         self.status_bar = Tkinter.Label(
             self.master, textvariable=self.status_var, bd=1, relief=Tkinter.SUNKEN, anchor=Tkinter.W)
         self.status_bar.grid(row=3, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
+        self._status_queue = deque()  # thread-safe queue for passing status change requests
 
         # configure enabled/disabled for waiting for a trial
         self.trial = None
@@ -218,6 +220,17 @@ class GuiHandler(object):
         # we have to do this by polling bc tk doesn't let us create callbacks from outside threads :(
         if self.trial is not None and self.trial.done():
             self.set_trial_finished()
+
+        # see if we need to update the status
+        # we have to poll for status changes since tk isn't thread-safe
+        try:
+            new_status = self._status_queue.popleft()
+            self.status_var.set(new_status)
+        except IndexError:
+            pass
+
+    def set_status(self, status):
+        self._status_queue.append(status)
 
     def set_trial_running(self):
         # disable the buttons corresponding to a running trial
@@ -276,7 +289,7 @@ class GuiHandler(object):
         self.set_trial_running()
 
         # call the callback with the current config
-        self.trial = self.start_trial_callback(config=cfg)
+        self.trial = self.start_trial_callback(config=cfg, status_cb=self.set_status)
 
     def _cancel_button_callback(self):
         # disable the cancel button to remove duplicate calls
