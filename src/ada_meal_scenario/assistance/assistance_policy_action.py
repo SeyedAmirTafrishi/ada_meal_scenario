@@ -11,9 +11,7 @@ from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config
-from ada_meal_scenario.loggers.zed_remote_recorder import get_zed_remote_recorder
-from ada_meal_scenario.loggers.pupil_recorder import get_pupil_recorder
-from ada_meal_scenario.loggers.rosbag_recorder import get_rosbag_recorder
+from ada_meal_scenario.loggers.loggers import get_loggers, log_goals
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -105,7 +103,7 @@ def do_assistance(prev_result, config, status_cb):
         for morsel in morsel_bodies
     ]
     goals = [
-        Goal(morsel.GetTransform(), [tf])
+        Goal(morsel.GetName(), morsel.GetTransform(), [tf])
         for morsel, tf in zip(morsel_bodies, desired_tfs)
     ]
 
@@ -122,39 +120,15 @@ def do_assistance(prev_result, config, status_cb):
             else:
                 logger.warning('Failed to find IK for morsel, removing')
         
-
         # Log the morsels to file
-        # if filename_trajdata is not None:
-        #     filename_morsels = os.path.splitext(filename_trajdata)[
-        #                             0] + '_morsels.yaml'
-        #     with open(filename_morsels, 'wb') as f:
-        #         yaml.dump({m.GetName(): m.GetTransform().tolist()
-        #                    for m in morsel_bodies}, f)
+        log_goals(true_goals, config)
 
         # collect async loggers
         # AdaHandler handles logging its own data in-thread
         # but loggers that just need to start and stop are passed as separate objects
-        log_dir = config['logging']['data_dir']
-        if log_dir is not None:
-            # make sure the directory exists
-            if not os.path.isdir(log_dir):
-                os.makedirs(log_dir)
+        loggers = get_loggers(config)
 
-            loggers = []
-
-            zed_logger = get_zed_remote_recorder(log_dir, config['logging'])
-            if zed_logger is not None:
-                loggers.append(zed_logger)
-
-            pupil_logger = get_pupil_recorder(log_dir, config['logging'])
-            if pupil_logger is not None:
-                loggers.append(pupil_logger)
-
-            rosbag_logger = get_rosbag_recorder(log_dir, config['logging'])
-            if rosbag_logger is not None:
-                loggers.append(rosbag_logger)
-
-        status_cb('Starting assistance')
+        status_cb('Starting trial')
         return AdaHandler(
             config['env'], config['robot'],
             AdaHandlerConfig.create(goals=goals, **get_ada_handler_config(config)),

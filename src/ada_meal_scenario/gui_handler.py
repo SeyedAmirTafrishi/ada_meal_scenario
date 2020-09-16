@@ -3,150 +3,20 @@
 
 import os
 import Tkinter
-import tkFont, tkFileDialog, tkMessageBox
+import tkFont, tkMessageBox
 from functools import partial
 import traceback
 import yaml
 from collections import deque
-from adapy.futures import TimeoutError, CancelledError
-from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
-from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame
-from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame
-from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame
-
-import os
 import rospkg
 
-from ada_teleoperation import DataRecordingUtils
+from adapy.futures import TimeoutError, CancelledError
+from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
+from ada_meal_scenario.loggers.loggers import LoggingOptions
+
 
 
 default_bg_color = None
-
-
-# Basic tooltip
-# From https://www.daniweb.com/programming/software-development/code/484591/a-tooltip-class-for-tkinter
-class ToolTip(object):
-    '''
-    create a tooltip for a given widget
-    '''
-
-    def __init__(self, widget, text='widget info'):
-        self.widget = widget
-        self.text = text
-        self.widget.bind("<Enter>", self.enter)
-        self.widget.bind("<Leave>", self.close)
-
-    def enter(self, event=None):
-        x = y = 0
-        x, y, cx, cy = self.widget.bbox("insert")
-        x += self.widget.winfo_rootx() + 25
-        y += self.widget.winfo_rooty() + 20
-        # creates a toplevel window
-        self.tw = Tkinter.Toplevel(self.widget)
-        # Leaves only the label and removes the app window
-        self.tw.wm_overrideredirect(True)
-        self.tw.wm_geometry("+%d+%d" % (x, y))
-        label = Tkinter.Label(self.tw, text=self.text, justify='left',
-                         background='yellow', relief='solid', borderwidth=1,
-                         font=("times", "8", "normal"))
-        label.pack(ipadx=1)
-
-    def close(self, event=None):
-        if self.tw:
-            self.tw.destroy()
-
-
-LOGGING_CONFIG_NAME = 'logging'
-
-class LoggingOptions(Tkinter.Frame, object):
-    __USER_ID_INVALID_BG__ = "#cc0000"
-    def __init__(self, parent, initial_config={}):
-        super(LoggingOptions, self).__init__(parent)
-        initial_config = initial_config.get(LOGGING_CONFIG_NAME, {})
-
-        label_font = tkFont.nametofont("TkDefaultFont").copy()
-        label_font.configure(weight='bold')
-
-        self.label = Tkinter.Label(
-            self, text="Logging Options", font=label_font)
-        self.label.grid(row=0, sticky=Tkinter.E+Tkinter.W)
-
-
-        self.logging_frame = Tkinter.Frame(self)
-        base_dir = initial_config.get('base_dir', 
-                os.path.join(rospkg.RosPack().get_path('ada_meal_scenario'), 'trajectory_data'))
-        
-        # choose top dir for logging
-        self.data_root_var = Tkinter.StringVar(value=base_dir)
-        self.data_root_label = Tkinter.Label(
-            self.logging_frame, textvariable=self.data_root_var, wraplength=200, justify=Tkinter.LEFT)
-        self.data_root_label.grid(row=0, column=0, sticky=Tkinter.W)
-        self.data_root_button = Tkinter.Button(self.logging_frame, text='Select data directory', command=self._set_data_root)
-        self.data_root_button.grid(row=0, column=1, sticky=Tkinter.W)
-
-        # choose user id
-        self.user_id_var = Tkinter.StringVar()
-        self.update_next_user_id()
-        self.user_id_var.trace("w", self._validate_user_id)
-        self.user_id_entry = Tkinter.Entry(
-            self.logging_frame, textvariable=self.user_id_var)
-        self.user_id_entry.grid(row=2, column=0, sticky=Tkinter.N+Tkinter.E+Tkinter.W)
-        self.user_id_label = Tkinter.Label(self.logging_frame, text='User ID')
-        self.user_id_label.grid(row=2, column=1, sticky=Tkinter.N+Tkinter.W)
-
-        self.logging_frame.grid(row=1, column=0, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
-
-        self.user_id_orig_bg = self.user_id_entry.cget("bg")
-
-        # additional logging options
-        self.pupil_config = PupilRecorderConfigFrame(self, initial_config)
-        self.pupil_config.grid(row=2, column=0, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
-        self.zed_config = RemoteRecorderConfigFrame(self, initial_config)
-        self.zed_config.grid(row=2, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
-        self.rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
-        self.rosbag_config.grid(row=1, column=1, sticky=Tkinter.N+Tkinter.E+Tkinter.W+Tkinter.S)
-
-    def _set_data_root(self):
-        data_root = tkFileDialog.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
-        if data_root is not None:
-            self.data_root_var.set(data_root)
-
-    def _get_data_dir(self):
-        return DataRecordingUtils.get_filename(
-            self.data_root_var.get(), DataRecordingUtils.user_folder_base_default, self.user_id_var.get(), '')
-    
-    def _validate_user_id(self, *_):
-        data_dir = self._get_data_dir()
-        if os.path.exists(data_dir):
-            self.user_id_entry.config(bg=LoggingOptions.__USER_ID_INVALID_BG__)
-        else:
-            self.user_id_entry.config(bg=self.user_id_orig_bg)
-
-    def get_config(self):
-        data_dir = self._get_data_dir()
-        if os.path.exists(data_dir):
-            raise ValueError("Directory exists: {}".format(data_dir))
-        base_res = {
-            'base_dir': self.data_root_var.get(),
-            'data_dir': data_dir
-        }
-        base_res.update(self.pupil_config.get_config())
-        base_res.update(self.zed_config.get_config())
-        base_res.update(self.rosbag_config.get_config())
-        return { LOGGING_CONFIG_NAME: base_res }
-
-    def set_state(self, state):
-        self.data_root_button.configure(state=state)
-        self.user_id_entry.configure(state=state)
-        self.pupil_config.set_state(state=state)
-        self.zed_config.set_state(state=state)
-        self.rosbag_config.set_state(state=state)
-
-    def update_next_user_id(self):
-        # when we've finished a trial, we need to advance the user id
-        default_user_id, _ = DataRecordingUtils.get_next_available_user_ind(
-            self.data_root_var.get(), make_dir=False)
-        self.user_id_var.set(default_user_id)
 
 
 def _load_initial_config(fn):
@@ -223,11 +93,15 @@ class GuiHandler(object):
 
         # see if we need to update the status
         # we have to poll for status changes since tk isn't thread-safe
-        try:
-            new_status = self._status_queue.popleft()
+        # and wrap it in a loop to handle multiple status updates in the same frame
+        new_status = None
+        while True:
+            try:
+                new_status = self._status_queue.popleft()
+            except IndexError:
+                break
+        if new_status is not None:
             self.status_var.set(new_status)
-        except IndexError:
-            pass
 
     def set_status(self, status):
         self._status_queue.append(status)

@@ -39,7 +39,7 @@ class RosbagRecorder:
         # would be nice to make this in-process or at least in python (multiprocessing instead of subprocess)
         self._node_name = rosgraph.names.anonymous_name('rosbag_recorder')
         proc_args = 'rosbag record -O {filename} {topics} __name:={name}'.format(filename=self.filename, topics=' '.join(self.topics), name=self._node_name)
-        rospy.loginfo('Starting rosbag process with command %s', proc_args)
+        rospy.logdebug('Starting rosbag process with command %s', proc_args)
         self._proc = pexpect.spawn(proc_args, logfile=sys.stdout)
 
         # wait for rosbag to be available
