@@ -1,4 +1,5 @@
 
+import copy
 import os
 try:
     import Tkinter as tk
@@ -109,6 +110,9 @@ class LoggingOptions(tk.Frame, object):
             self.data_root_var.get(), make_dir=False)
         self.user_id_var.set(default_user_id)
 
+def get_log_dir(config):
+    return config.get(LOGGING_CONFIG_NAME, {}).get('data_dir', None)
+
 def get_loggers(config):
     if LOGGING_CONFIG_NAME not in config:
         return []
@@ -137,7 +141,7 @@ def get_loggers(config):
     return loggers
 
 
-def log_goals(goals, config):
+def log_trial_init(goals, config):
     log_dir = config.get(LOGGING_CONFIG_NAME, {}).get('data_dir', None)
     if log_dir is None:
         return
@@ -147,6 +151,15 @@ def log_goals(goals, config):
         os.makedirs(log_dir)
     with open(os.path.join(log_dir, 'goals.yaml'), 'w') as f:
         yaml.safe_dump( { g.name: g.pose.tolist() for g in goals }, f )
+
+    # log the config we used to run this trial
+    # we can't log the env or robot, so make a copy
+    new_config = dict(config)
+    del new_config['env']
+    del new_config['robot']
+    with open(os.path.join(log_dir, 'config.yaml'), 'w') as f:
+        yaml.safe_dump(new_config, f)
+
     
 
 

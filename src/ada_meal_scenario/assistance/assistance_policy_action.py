@@ -11,7 +11,7 @@ from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config
-from ada_meal_scenario.loggers.loggers import get_loggers, log_goals
+from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -121,7 +121,7 @@ def do_assistance(prev_result, config, status_cb):
                 logger.warning('Failed to find IK for morsel, removing')
         
         # Log the morsels to file
-        log_goals(true_goals, config)
+        log_trial_init(true_goals, config)
 
         # collect async loggers
         # AdaHandler handles logging its own data in-thread
@@ -131,7 +131,7 @@ def do_assistance(prev_result, config, status_cb):
         status_cb('Starting trial')
         return AdaHandler(
             config['env'], config['robot'],
-            AdaHandlerConfig.create(goals=goals, **get_ada_handler_config(config)),
+            AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
             loggers)
 
 
