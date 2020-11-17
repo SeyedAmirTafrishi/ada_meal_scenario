@@ -17,6 +17,7 @@ from ada_teleoperation import DataRecordingUtils
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
 from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
 from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame, get_zed_remote_recorder
+from ada_meal_scenario.loggers.zed_node_recorder import ZedNodeRecorderConfigFrame, get_zed_node_recorder
 
 LOGGING_CONFIG_NAME = 'logging'
 
@@ -61,12 +62,19 @@ class LoggingOptions(tk.Frame, object):
         self.user_id_orig_bg = self.user_id_entry.cget("bg")
 
         # additional logging options
-        self.pupil_config = PupilRecorderConfigFrame(self, initial_config)
-        self.pupil_config.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W+tk.S)
-        self.zed_config = RemoteRecorderConfigFrame(self, initial_config)
-        self.zed_config.grid(row=2, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
-        self.rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
-        self.rosbag_config.grid(row=1, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        pupil_config = PupilRecorderConfigFrame(self, initial_config)
+        pupil_config.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W+tk.S)
+        
+        zed_config = RemoteRecorderConfigFrame(self, initial_config)
+        zed_config.grid(row=2, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        
+        zed_node_config = ZedNodeRecorderConfigFrame(self, initial_config)
+        zed_node_config,.grid(row=3, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        
+        rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
+        rosbag_config.grid(row=1, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+
+        self.loggers = [pupil_config, zed_config, zed_node_config, rosbag_config]
 
     def _set_data_root(self):
         data_root = tkfile.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -92,17 +100,16 @@ class LoggingOptions(tk.Frame, object):
             'base_dir': self.data_root_var.get(),
             'data_dir': data_dir
         }
-        base_res.update(self.pupil_config.get_config())
-        base_res.update(self.zed_config.get_config())
-        base_res.update(self.rosbag_config.get_config())
+        for logger in self.loggers:
+            base_res.update(logger.get_config())
         return { LOGGING_CONFIG_NAME: base_res }
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
         self.user_id_entry.configure(state=state)
-        self.pupil_config.set_state(state=state)
-        self.zed_config.set_state(state=state)
-        self.rosbag_config.set_state(state=state)
+
+        for logger in self.loggers:
+            logger.set_state(state=state)
 
     def update_next_user_id(self):
         # when we've finished a trial, we need to advance the user id
@@ -137,6 +144,10 @@ def get_loggers(config):
         rosbag_logger = get_rosbag_recorder(log_dir, config)
         if rosbag_logger is not None:
             loggers.append(rosbag_logger)
+
+        zed_node_logger = get_zed_node_recorder(log_dir, config)
+        if zed_node_logger is not None:
+            loggers.append(zed_node_logger)
     
     return loggers
 
