@@ -11,7 +11,7 @@ from prpy.planning.base import PlanningError
 from prpy.tsr.rodrigues import rodrigues
 
 from ada_meal_scenario.action_sequence import LoggedActionSequence, futurize
-from ada_meal_scenario.gui_handler import GuiHandler
+from ada_meal_scenario.gui_handler import build_ada_meal_scenario_gui_handler
 from ada_meal_scenario.trajectory_actions import LookAtPlate, Serve
 from ada_meal_scenario.detect_goals import GenerateDummyMorsels, DetectMorsels
 from ada_meal_scenario.assistance.assistance_policy_action import do_assistance
@@ -134,7 +134,7 @@ def load_fork_and_tool(env, robot):
         if 'end_effector' in link.GetName():
             grab_link = link
 
-    robot.arm.hand.CloseHand(1.2)
+    robot.arm.hand.CloseHand(0.6)
 
     logger.info('Grabbing tool and fork')
     robot.Grab(tool, finger_link_inds)
@@ -327,7 +327,7 @@ if __name__ == "__main__":
         config['robot'] = robot
         return trial_type(config=config, status_cb=status_cb)
 
-    gui = GuiHandler(start_trial_callback=make_trial,
+    gui = build_ada_meal_scenario_gui_handler(start_trial_callback=make_trial,
                      quit_callback=lambda: rospy.signal_shutdown("Quit button pressed"),
                      initial_config_file=args.load_config)
 
