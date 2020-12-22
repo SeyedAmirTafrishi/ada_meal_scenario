@@ -9,7 +9,7 @@ import rospkg
 from ada_assistance_policy.AdaHandler import AdaHandler, AdaHandlerConfig
 from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
-from ada_meal_scenario.action_sequence import make_async_mapper
+from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config
 from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
 
@@ -43,7 +43,7 @@ def read_offsets_from_file(filename='morsel_offsets.txt'):
     return xoffset, yoffset
 
 
-def get_prestab_position(env, robot, morsel, offsets=np.zeros((2, 1))):
+def get_prestab_position(env, robot, morsel):
     fork = env.GetKinBody('fork')
     if fork is None:
         desired_ee_pose = np.array(
@@ -71,7 +71,7 @@ def get_prestab_position(env, robot, morsel, offsets=np.zeros((2, 1))):
     return desired_ee_pose
 
 
-def check_ik_for_pose(env, robot, desired_ee_pose):
+def check_ik_for_pose(robot, desired_ee_pose):
     with robot:
         ik_filter_options = openravepy.IkFilterOptions.CheckEnvCollisions
         # first call FindIKSolution which is faster if it succeeds
@@ -85,59 +85,70 @@ def check_ik_for_pose(env, robot, desired_ee_pose):
                 return False
     return True
 
+def check_ik_for_goal(robot, goal):
+    logger.info('checking IK for {}'.format(goal.name))
+    return (any(check_ik_for_pose(robot, tf) for tf in goal.target_poses), goal)
 
-def do_assistance(prev_result, config, status_cb):
-    status_cb('Preparing assistance')
-    env = config['env']
-    robot = config['robot']
 
-    # we expect the previous action to be some form of DetectGoals
-    # which gives a list of KinBodys as their result
-    morsel_bodies = prev_result
+def make_goal_builder(get_robot_pos_fn=get_prestab_position):
+    @futurize(blocking=True)
+    def build_goals(prev_result, config, status_cb):
+        """
+        prev_result: iterable of KinBody-s representing goal objects
+        """
+        status_cb('Preparing assistance')
+        env = config['env']
+        robot = config['robot']
+        goal_bodies = prev_result
 
-    xoffset, yoffset = read_offsets_from_file()
-    # get_prestab_position is specific to morsels!
-    # todo: make this a config or at least easier to modify
-    desired_tfs = [
-        get_prestab_position(env, robot, morsel, np.array([xoffset, yoffset]))
-        for morsel in morsel_bodies
-    ]
-    goals = [
-        Goal(morsel.GetName(), morsel.GetTransform(), [tf])
-        for morsel, tf in zip(morsel_bodies, desired_tfs)
-    ]
+        # apply the manual offset
+        # todo: move this to the gui
+        xoffset, yoffset = read_offsets_from_file()
+        for goal in goal_bodies:
+            tf = goal.GetTransform()
+            tf[:2,3] += [xoffset, yoffset]
+            goal.SetTransform(tf)
 
-    logging.debug('got {} morsels'.format(len(goals)))
-    def run_assistance_on_goals(prev_result, config, status_cb):
-        # prev_result is returned by make_async_mapper below
-        # which is a list of results of check_ik_for_pose results
-        assert len(prev_result) == len(goals)
-        # filter the morsels by the filter
-        true_goals = []
-        for goal, ok in zip(goals, prev_result):
-            if ok:
-                true_goals.append(goal)
-            else:
-                logger.warning('Failed to find IK for morsel, removing')
+        goals = [
+            (robot, Goal(goal.GetName(), goal.GetTransform(), [get_robot_pos_fn(env, robot, goal)]))
+            for goal in goal_bodies
+        ]
+
+        logger.debug('got {} goals'.format(len(goals)))
+        return goals
         
-        # Log the morsels to file
-        log_trial_init(true_goals, config)
+    return ActionSequenceFactory([build_goals]
+            ).then(make_async_mapper(check_ik_for_goal)
+            ).then(filter_goals)
 
-        # collect async loggers
-        # AdaHandler handles logging its own data in-thread
-        # but loggers that just need to start and stop are passed as separate objects
-        loggers = get_loggers(config)
+@futurize(blocking=True)
+def filter_goals(prev_result, config, *args, **kwargs):
+    ok_goals = []
+    for ok, goal in prev_result:
+        if ok:
+            ok_goals.append(goal)
+        else:
+            logger.warning('removed {}: no valid IK found'.format(goal.GetName()))
+            config['env'].Remove(goal)
+    return ok_goals
 
-        status_cb('Starting trial')
-        return AdaHandler(
-            config['env'], config['robot'],
-            AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
-            loggers)
+def run_assistance_on_goals(prev_result, config, status_cb):
+    true_goals = prev_result
+    # Log the morsels to file
+    log_trial_init(true_goals, config)
+
+    # collect async loggers
+    # AdaHandler handles logging its own data in-thread
+    # but loggers that just need to start and stop are passed as separate objects
+    loggers = get_loggers(config)
+
+    status_cb('Starting trial')
+    return AdaHandler(
+        config['env'], config['robot'],
+        AdaHandlerConfig.create(goals=true_goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
+        loggers)
 
 
-    # Actually make sure we can do IK for all the goals
-    # This can take a little while so make it an ActionSequence
-    return make_async_mapper(check_ik_for_pose, 
-                    ( (env, robot, tf) for tf in desired_tfs) 
-                ).then(run_assistance_on_goals
-                ).run(config=config, status_cb=status_cb)
+def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position):
+    return make_goal_builder(get_robot_pos_fn
+        ).then(run_assistance_on_goals)

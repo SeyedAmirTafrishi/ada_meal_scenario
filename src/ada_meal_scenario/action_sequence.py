@@ -20,7 +20,7 @@ class ActionSequence(Future):
         self.status_cb = status_cb if status_cb is not None else lambda _: None
 
         # start the first action
-        self._start_next_action()
+        self._start_next_action(prev_result)
 
     def cancel(self):
         # make sure the next action we do is a cancel action
@@ -99,7 +99,10 @@ class ActionSequenceFactory:
         self.action_factories = action_factories
 
     def then(self, factory):
-        self.action_factories.append(factory)
+        if isinstance(factory, ActionSequenceFactory):
+            self.action_factories.extend(factory.action_factories)
+        else:
+            self.action_factories.append(factory)
         return self # for chaining
     
     def __call__(self, *args, **kwargs):
@@ -163,24 +166,34 @@ class NoOp(Future):
         super(NoOp, self).__init__()
         self.set_result(result)
 
+class Wait(Future):
+    def __init__(self, status_cb=None, *args, **kwargs):
+        if status_cb is not None:
+            status_cb("Waiting for cancel")
+        super(Wait, self).__init__()
+    def cancel(self):
+        self.set_cancelled()
 
-def make_async_mapper(fn, itr):
-    # collect the inputs, initialize storage for the outputs
-    inputs = list(itr)
-    res_obj = [ None ] * len(inputs)
 
-    def make_func_runner(idx, inpt):
-        def run(*args, **kwargs):
-            future = defer_threaded(fn, inpt)
-            def update_result(fut):
-                res_obj[idx] = fut.result(0)
-            future.add_done_callback(update_result)
-            return future
-        return run
-    
-    action_factories = [ make_func_runner(idx, inpt) for idx, inpt in enumerate(inputs) ]
-    # make sure we actually return the result
-    def return_result(*args, **kwargs):
-        return NoOp(res_obj)
-    action_factories += [return_result]
-    return ActionSequenceFactory(action_factories=action_factories)
+def make_async_mapper(fn):
+    def map_async(prev_result, *args, **kwargs):
+        # collect the inputs, initialize storage for the outputs
+        inputs = list(prev_result)
+        res_obj = [ None ] * len(inputs)
+
+        def make_func_runner(idx, inpt):
+            def run(*args, **kwargs):
+                future = defer_threaded(fn, inpt)
+                def update_result(fut):
+                    res_obj[idx] = fut.result(0)
+                future.add_done_callback(update_result)
+                return future
+            return run
+        
+        action_factories = [ make_func_runner(idx, inpt) for idx, inpt in enumerate(inputs) ]
+        # make sure we actually return the result
+        def return_result(*args, **kwargs):
+            return NoOp(res_obj)
+        action_factories += [return_result]
+        return ActionSequence(action_factories=action_factories)
+    return map_async
