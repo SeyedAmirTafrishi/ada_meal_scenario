@@ -29,7 +29,7 @@ def _load_initial_config(fn):
 class GuiHandler(object):
     def __init__(self, start_trial_callback, quit_callback, initial_config_file=None):
         self.config_file = os.path.abspath(initial_config_file) if initial_config_file is not None else None
-        initial_config = _load_initial_config(initial_config_file)
+        self._initial_config = _load_initial_config(initial_config_file)
         
         self.master = Tkinter.Tk()
 
@@ -45,19 +45,22 @@ class GuiHandler(object):
 
 
         sticky = Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S
-        self.assistance_config = AssistanceConfigFrame(self.master, initial_config)
-        self.assistance_config.grid(row=0, column=0, columnspan=4, sticky=sticky)
+        self.config_button_frame = Tkinter.Frame(self.master)
+        self.config_button_frame.grid(row=0, column=0, sticky='nsew', ipadx=3)
 
-        self.logging_options = LoggingOptions(self.master, initial_config)
-        self.logging_options.grid(
-            row=1, column=1, padx=2, pady=2, columnspan=3, rowspan=2, sticky=sticky)
+        self.config_frame = Tkinter.Frame(self.master)
+        self.config_frame.grid(row=0, column=1, sticky='nsew', padx=2, pady=2)
 
+        self.master.rowconfigure(0, weight=1)
+        self.master.columnconfigure(1, weight=1)
+        
+        self.config_frames = []
+        self.config_selector_buttons = []
+        self.active_frame = None
 
-        self.save_config_button = Tkinter.Button(self.master, text='Save config', command=self._save_config)
-        self.save_config_button.grid(row=1, column=0, sticky=Tkinter.N+Tkinter.W, pady=15)
 
         self.start_frame = Tkinter.Frame(self.master)
-        self.start_frame.grid(row=2, column=0, sticky=Tkinter.W+Tkinter.S, padx=2, pady=2)
+        self.start_frame.grid(row=1, column=0, columnspan=2, sticky='esw', padx=2, pady=2)
 
         self.start_button = Tkinter.Button(self.start_frame,
                                            text="Start Next Trial",
@@ -66,23 +69,49 @@ class GuiHandler(object):
 
         self.cancel_button = Tkinter.Button(
             self.start_frame, text="Cancel trial", command=self._cancel_button_callback)
-        self.cancel_button.grid(row=1, column=0, sticky=Tkinter.W+Tkinter.E)
+        self.cancel_button.grid(row=0, column=1, sticky=Tkinter.W+Tkinter.E)
+
+        self.save_config_button = Tkinter.Button(self.start_frame, text='Save config', command=self._save_config)
+        self.save_config_button.grid(row=0, column=2, sticky=Tkinter.N+Tkinter.W)
 
         self.quit_button = Tkinter.Button(
             self.start_frame, text="Quit", command=self._quit_button_callback)
-        self.quit_button.grid(row=2, column=0, sticky=Tkinter.W+Tkinter.E)
+        self.quit_button.grid(row=0, column=3, sticky=Tkinter.W+Tkinter.E, padx=5)
 
         # add a status bar
         self.status_var = Tkinter.StringVar(value='Ready')
         self.status_bar = Tkinter.Label(
             self.master, textvariable=self.status_var, bd=1, relief=Tkinter.SUNKEN, anchor=Tkinter.W)
-        self.status_bar.grid(row=3, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
+        self.status_bar.grid(row=2, column=0, columnspan=4, sticky=Tkinter.S+Tkinter.E+Tkinter.W)
         self._status_queue = deque()  # thread-safe queue for passing status change requests
 
         # configure enabled/disabled for waiting for a trial
         self.trial = None
         self.set_waiting_for_trial()
 
+    def add_config_frame(self, fn, name):
+        if self.trial is not None:
+            raise RuntimeError('Cannot add config frame while trial is running!')
+        frame = fn(self.config_frame, self._initial_config)
+        self.config_frames.append(frame)
+        self.set_waiting_for_trial()
+
+        select_button = Tkinter.Button(self.config_button_frame, text=name, command=lambda: self._highlight_config(frame))
+        select_button.grid(column=0, sticky='new')
+        self.config_selector_buttons.append(select_button)
+
+        if self.active_frame is None:
+            self._highlight_config(frame)
+
+        return frame
+
+    def _highlight_config(self, frame):
+        if self.active_frame is frame:
+            return
+        if self.active_frame is not None:
+            self.active_frame.pack_forget()
+        frame.pack(fill=Tkinter.BOTH, expand=True)
+        self.active_frame = frame
 
     def run_once(self):
         self.master.update()
@@ -106,10 +135,13 @@ class GuiHandler(object):
     def set_status(self, status):
         self._status_queue.append(status)
 
+    def _set_config_frame_state(self, state):
+        for frame in self.config_frames:
+            frame.set_state(state)
+
     def set_trial_running(self):
         # disable the buttons corresponding to a running trial
-        self.assistance_config.set_state(Tkinter.DISABLED)
-        self.logging_options.set_state(Tkinter.DISABLED)
+        self._set_config_frame_state(Tkinter.DISABLED)
 
         self.start_button.configure(state=Tkinter.DISABLED)
         self.quit_button.configure(state=Tkinter.DISABLED)
@@ -120,9 +152,7 @@ class GuiHandler(object):
 
     def set_waiting_for_trial(self):
         # enable buttons related to configuring a trial
-        self.assistance_config.set_state(Tkinter.NORMAL)
-        self.logging_options.set_state(Tkinter.NORMAL)
-        self.logging_options.update_next_user_id()
+        self._set_config_frame_state(Tkinter.NORMAL)
 
         self.start_button.configure(state=Tkinter.NORMAL)
         self.quit_button.configure(state=Tkinter.NORMAL)
@@ -190,8 +220,15 @@ class GuiHandler(object):
 
     def get_selected_options(self):
         to_ret = dict()
-        to_ret.update(self.assistance_config.get_config())
-        to_ret.update(self.logging_options.get_config())
+        for frame in self.config_frames:
+            to_ret.update(frame.get_config())
         return to_ret
+
+def build_ada_meal_scenario_gui_handler(*args, **kwargs):
+    gui_handler = GuiHandler(*args, **kwargs)
+    gui_handler.add_config_frame(AssistanceConfigFrame, "Assistance")
+    gui_handler.add_config_frame(LoggingOptions, "Logging")
+    
+    return gui_handler
 
 
