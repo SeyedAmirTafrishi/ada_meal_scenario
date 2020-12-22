@@ -69,7 +69,7 @@ class LoggingOptions(tk.Frame, object):
         zed_config.grid(row=2, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
         
         zed_node_config = ZedNodeRecorderConfigFrame(self, initial_config)
-        zed_node_config,.grid(row=3, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        zed_node_config.grid(row=3, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
         
         rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
         rosbag_config.grid(row=1, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
