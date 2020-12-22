@@ -10,16 +10,47 @@ project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
 
 
-class RunTrajectory(ActionSequence):
+def execute_trajectory(robot, traj):
+    if robot.simulated:
+        # if the robot is simulated, it calls prpy.base.robot.ExecuteTrajectory()
+        # which does NOT support defer=True
+        return defer(blocking=False, target=robot.ExecuteTrajectory, args=(traj,))
+    else:
+        return robot.ExecuteTrajectory(traj, defer=True)
+
+def create_move_robot_action(plan_fn):
+    def do_move(prev_result=None, config=None, status_cb=None):
+        robot = config['robot']
+        traj = robot.PostProcessPath(plan_fn(robot))
+        return execute_trajectory(robot, traj)
+    return do_move
+
+def create_move_robot_to_named_configuration_action(named_config):
+    return create_move_robot_action(lambda r: r.PlanToNamedConfiguration(named_config))
+
+def create_move_robot_to_configuration_action(config):
+    return create_move_robot_action(lambda r: r.PlanToConfiguration(config))
+
+def create_move_robot_to_end_effector_pose_action(config):
+    return create_move_robot_action(lambda r: r.PlanToEndEffectorPose(config))
+
+def create_move_hand_action(value):
+    def do_move(prev_result=None, config=None, status_cb=None):
+        robot = config['robot']
+        return defer(blocking=False, target=robot.arm.hand.CloseHand, args=(value,))
+    return do_move
+
+
+class RunSavedTrajectory(ActionSequence):
     _TRAJ_PATH = None
     __CACHED_TRAJ__ = {}
     def __init__(self, file_base, traj_status, prev_result=None, config=None, status_cb=None):
         # load up the trajectories
         traj_filename = _get_traj_file(file_base, config)
-        if traj_filename not in RunTrajectory.__CACHED_TRAJ__:
-            RunTrajectory.__CACHED_TRAJ__[
+        if traj_filename not in RunSavedTrajectory.__CACHED_TRAJ__:
+            RunSavedTrajectory.__CACHED_TRAJ__[
                 traj_filename] = prpy.rave.load_trajectory(config['env'], traj_filename)
-        self.traj = RunTrajectory.__CACHED_TRAJ__[traj_filename]
+        self.traj = RunSavedTrajectory.__CACHED_TRAJ__[traj_filename]
         self.env = config['env']
         self.robot = config['robot']
 
@@ -30,7 +61,7 @@ class RunTrajectory(ActionSequence):
         else:
             action_factories = [self._bypass]
 
-        super(RunTrajectory, self).__init__(action_factories=action_factories)
+        super(RunSavedTrajectory, self).__init__(action_factories=action_factories)
 
     def _move_to_traj_start(self, prev_result, config, status_cb):
         if prpy.util.IsAtTrajectoryStart(self.robot, self.traj):
@@ -41,19 +72,11 @@ class RunTrajectory(ActionSequence):
             first_config = cspec.ExtractJointValues(
                 first_wpt, self.robot, self.robot.GetActiveManipulator().GetArmIndices())
             traj_to_start = self.robot.PostProcessPath(self.robot.PlanToConfiguration(first_config, defer=True))
-            return self._execute_traj(traj_to_start)
-
-    def _execute_traj(self, traj):
-        if self.robot.simulated:
-            # if the robot is simulated, it calls prpy.base.robot.ExecuteTrajectory()
-            # which does NOT support defer=True
-            return defer(blocking=False, target=self.robot.ExecuteTrajectory, args=(traj,))
-        else:
-            return self.robot.ExecuteTrajectory(traj, defer=True)
+            return execute_trajectory(self.robot, traj_to_start)
 
     def _execute_stored_traj(self, prev_result, config, status_cb):
         try:
-            return self._execute_traj(self.traj)
+            return execute_trajectory(self.robot, self.traj)
         except PlanningError as e:
             logger.error(
                 'Executing saved traj failed. Trying to replan to config')
@@ -61,7 +84,7 @@ class RunTrajectory(ActionSequence):
             last_config = cspec.ExtractJointValues(
                 last_wpt, robot, self.robot.GetActiveManipulator().GetArmIndices())
             traj = self.robot.PostProcessPath(self.robot.PlanToConfiguration(last_config))
-            return self._execute_traj(traj)
+            return execute_trajectory(self.robot, traj)
             
     @futurize(blocking=True)
     def _bypass(self, prev_result, config, status_cb):
@@ -78,7 +101,7 @@ class RunTrajectory(ActionSequence):
 
 # load in the expected configurations
 def _get_traj_file(file_base, config):
-    if RunTrajectory._TRAJ_PATH is None:
+    if RunSavedTrajectory._TRAJ_PATH is None:
         traj_path = find_in_workspaces(
             search_dirs=['share'],
             project=project_name,
@@ -86,13 +109,13 @@ def _get_traj_file(file_base, config):
             first_match_only=True)
         if not traj_path:
             raise RuntimeError('Failed to find saved trajectory files')
-        RunTrajectory._TRAJ_PATH = traj_path[0]
+        RunSavedTrajectory._TRAJ_PATH = traj_path[0]
     
-    return os.path.join(RunTrajectory._TRAJ_PATH, 'trajectories', '{}_{}'.format(config['robot'].GetName(), file_base))
+    return os.path.join(RunSavedTrajectory._TRAJ_PATH, 'trajectories', '{}_{}'.format(config['robot'].GetName(), file_base))
     
 
-LookAtPlate = partial(RunTrajectory, 'traj_lookingAtPlate.xml', 'Moving to look at plate')
-Serve = partial(RunTrajectory, 'traj_serving.xml', 'Serving')
+LookAtPlate = partial(RunSavedTrajectory, 'traj_lookingAtPlate.xml', 'Moving to look at plate')
+Serve = partial(RunSavedTrajectory, 'traj_serving.xml', 'Serving')
 
 
 
