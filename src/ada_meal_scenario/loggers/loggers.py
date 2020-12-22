@@ -49,17 +49,24 @@ class LoggingOptions(tk.Frame, object):
 
         # choose user id
         self.user_id_var = tk.StringVar()
-        self.update_next_user_id()
+        self.user_id_var.set(initial_config.get('data_dir', ''))
         self.user_id_var.trace("w", self._validate_user_id)
         self.user_id_entry = tk.Entry(
             self.logging_frame, textvariable=self.user_id_var)
         self.user_id_entry.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W)
         self.user_id_label = tk.Label(self.logging_frame, text='User ID')
         self.user_id_label.grid(row=2, column=1, sticky=tk.N+tk.W)
+        self.user_id_auto_var = tk.IntVar()
+        self.user_id_auto_var.set(initial_config.get('auto_user_id', True))
+        self.user_id_auto_check = tk.Checkbutton(self.logging_frame, variable=self.user_id_auto_var, text='Auto-increment ID', command=self._set_user_id_auto)
+        self.user_id_auto_check.grid(row=3, column=0, columnspan=2)
+
+        # initialize fields
+        self.user_id_orig_bg = self.user_id_entry.cget("bg")
+        self._set_user_id_auto()
 
         self.logging_frame.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
 
-        self.user_id_orig_bg = self.user_id_entry.cget("bg")
 
         # additional logging options
         pupil_config = PupilRecorderConfigFrame(self, initial_config)
@@ -92,30 +99,49 @@ class LoggingOptions(tk.Frame, object):
         else:
             self.user_id_entry.config(bg=self.user_id_orig_bg)
 
+    def _set_user_id_auto(self, *args):
+        if self.user_id_auto_var.get():
+            self.user_id_entry.configure(state=tk.DISABLED)
+            self._update_user_id()
+        else:
+            self.user_id_entry.configure(state=tk.NORMAL)
+
+    def _update_user_id(self):
+        # when we've finished a trial, we need to advance the user id
+        next_user_id, _ = DataRecordingUtils.get_next_available_user_ind(
+            self.data_root_var.get(), make_dir=False)
+        self.user_id_var.set(next_user_id)
+        self._user_id_dirty = False
+
     def get_config(self):
         data_dir = self._get_data_dir()
         if os.path.exists(data_dir):
             raise ValueError("Directory exists: {}".format(data_dir))
         base_res = {
             'base_dir': self.data_root_var.get(),
-            'data_dir': data_dir
+            'data_dir': data_dir,
+            'auto': bool(self.user_id_auto_var.get())
         }
         for logger in self.loggers:
             base_res.update(logger.get_config())
+
         return { LOGGING_CONFIG_NAME: base_res }
 
     def set_state(self, state):
         self.data_root_button.configure(state=state)
-        self.user_id_entry.configure(state=state)
+        if not self.user_id_auto_var.get():
+            self.user_id_entry.configure(state=state)
+        self.user_id_auto_check.configure(state=state)
 
         for logger in self.loggers:
             logger.set_state(state=state)
+        
+        # this is a hacky signal that says a trial probably just ended
+        # so re-check the log id
+        # this is a no-op if the directory was never used
+        if self.user_id_auto_var.get():
+            self._update_user_id()
 
-    def update_next_user_id(self):
-        # when we've finished a trial, we need to advance the user id
-        default_user_id, _ = DataRecordingUtils.get_next_available_user_ind(
-            self.data_root_var.get(), make_dir=False)
-        self.user_id_var.set(default_user_id)
 
 def get_log_dir(config):
     return config.get(LOGGING_CONFIG_NAME, {}).get('data_dir', None)
