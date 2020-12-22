@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from ada_teleoperation.UserInputMapper import list_profiles
 
 try:
     import Tkinter as tk
@@ -59,19 +60,6 @@ _METHOD_SELECTOR_VALS = OrderedDict([
     ],
 ])
 
-_DEVICE_SELECTOR_VALS = OrderedDict([
-    ['Mouse', {
-        'input_interface_name': 'mouse',
-        'num_input_dofs': 2
-    }],
-    [
-        'Kinova USB', {
-            'input_interface_name': 'kinova',
-            'num_input_dofs': 2
-        }
-    ],
-])
-
 _TRANSITION_FUNCTION_SELECTOR_VALS = OrderedDict(
     [['a+u', lambda g: lambda a,u: a+u,
     ],
@@ -115,17 +103,14 @@ class AssistanceConfigFrame(tk.Frame, object):
                                   padx=2,
                                   pady=2,
                                   sticky=sticky)
-
-        self.device_selector = OptionSelector(
+        
+        self.input_profile_selector = OptionSelector(
             self,
-            title="UI Device:",
-            option_names=_DEVICE_SELECTOR_VALS.keys(),
-            default_selection=initial_config.get('device_index', 1))
-        self.device_selector.grid(row=0,
-                                  column=1,
-                                  padx=2,
-                                  pady=2,
-                                  sticky=sticky)
+            title='Input Profile:',
+            option_names=list_profiles(),
+            default_selection=0
+        )
+        self.input_profile_selector.grid(row=0, column=1, padx=2, pady=2, sticky=sticky)
 
         self.transition_function_selector = OptionSelector(
             self,
@@ -152,25 +137,27 @@ class AssistanceConfigFrame(tk.Frame, object):
     def get_config(self):
         config = {
             'method': self.method_selector.get_value(),
-            'device': self.device_selector.get_value(),
             'transition_function': self.transition_function_selector.get_value(),
-            'prediction': self.prediction_selector.get_value()
+            'prediction': self.prediction_selector.get_value(),
+            'input_profile_name': self.input_profile_selector.get_value()
         }
         return {ASSISTANCE_CONFIG_NAME: config}
 
     def set_state(self, state):
         self.method_selector.set_state(state)
-        self.device_selector.set_state(state)
         self.transition_function_selector.set_state(state)
         self.prediction_selector.set_state(state)
+        self.input_profile_selector.set_state(state)
 
 def get_ada_handler_config(config):
     config = config[ASSISTANCE_CONFIG_NAME]
 
-    out = {}
+    out = {
+        'input_profile_name': config['input_profile_name']
+    }
     out.update(_METHOD_SELECTOR_VALS[config['method']])
-    out.update(_DEVICE_SELECTOR_VALS[config['device']])
     out.update(_PREDICTOR_SELECTOR_VALS[config['prediction']])
+
     
     # lambda is bad in the config directly bc we want to save/load it
     # so use a string lookup and resolve it on trial start
