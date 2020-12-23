@@ -16,7 +16,13 @@ def execute_trajectory(robot, traj):
         # which does NOT support defer=True
         return defer(blocking=False, target=robot.ExecuteTrajectory, args=(traj,))
     else:
-        return robot.ExecuteTrajectory(traj, defer=True)
+        # for some reason if you pass an empty trajectory, defer is ignored and the traj is just sent back
+        # so instead return an empty Future
+        fut = robot.ExecuteTrajectory(traj, defer=True)
+        if hasattr(fut, 'add_done_callback'):
+            return fut
+        else:
+            return NoOp()
 
 def create_move_robot_action(plan_fn):
     def do_move(prev_result=None, config=None, status_cb=None):
