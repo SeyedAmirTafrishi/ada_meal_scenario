@@ -98,10 +98,15 @@ class ActionSequenceFactory:
     def __init__(self, action_factories=[]):
         self.action_factories = action_factories
 
+    def __iter__(self):
+        # enable easier chaining
+        return iter(self.action_factories)
+
     def then(self, factory):
-        if isinstance(factory, ActionSequenceFactory):
-            self.action_factories.extend(factory.action_factories)
-        else:
+        # extends for lists and other ActionSequenceFactory-s; appends for single factory
+        try:
+            self.action_factories.extend(factory)
+        except TypeError:
             self.action_factories.append(factory)
         return self # for chaining
     
@@ -166,9 +171,15 @@ class NoOp(Future):
         super(NoOp, self).__init__()
         self.set_result(result)
 
+    @classmethod
+    def factory(cls, result):
+        def fn(*args, **kwargs):
+            return cls(result, *args, **kwargs)
+        return fn
+
 class Wait(Future):
     def __init__(self, status_cb=None, *args, **kwargs):
-        if status_cb is not None:
+        if status_cb:
             status_cb("Waiting for cancel")
         super(Wait, self).__init__()
     def cancel(self):
