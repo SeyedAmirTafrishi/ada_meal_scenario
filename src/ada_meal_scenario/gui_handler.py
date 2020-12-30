@@ -109,9 +109,15 @@ class GuiHandler(object):
         if self.active_frame is frame:
             return
         if self.active_frame is not None:
+            # it's technically faster to store the index separately than to search for it each time
+            # but like, len(active_frames) is small so it really doesn't matter
+            prev_btn_idx = self.config_frames.index(self.active_frame)
+            self.config_selector_buttons[prev_btn_idx].configure(relief=Tkinter.RAISED)
             self.active_frame.pack_forget()
         frame.pack(fill=Tkinter.BOTH, expand=True)
         self.active_frame = frame
+        btn_idx = self.config_frames.index(frame)
+        self.config_selector_buttons[btn_idx].configure(relief=Tkinter.SUNKEN)
 
     def run_once(self):
         self.master.update()
@@ -184,7 +190,7 @@ class GuiHandler(object):
     def _start_button_callback(self):
         # get the config
         try:
-            cfg = self.get_selected_options()
+            cfg = self.get_config()
         except ValueError as e:
             tkMessageBox.showerror(message=str(e))
             return
@@ -211,14 +217,14 @@ class GuiHandler(object):
             self.config_file = tkFileDialog.asksaveasfilename(title='Select location to save config file', defaultextension='.yaml')
         if self.config_file is not None:
             with open(self.config_file, 'w') as f:
-                yaml.dump(self.get_selected_options(), f)
+                yaml.dump(self.get_config(), f)
             self.status_var.set('Config file saved to {}'.format(self.config_file))
 
 
     def _quit_button_callback(self):
         self.quit_callback()
 
-    def get_selected_options(self):
+    def get_config(self):
         to_ret = dict()
         for frame in self.config_frames:
             to_ret.update(frame.get_config())
