@@ -14,6 +14,7 @@ import yaml
 import rospkg
 
 from ada_teleoperation import DataRecordingUtils
+from ada_meal_scenario.loggers.goal_transform_publisher import GoalTransformPublisherConfigFrame, get_goal_transform_publisher
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
 from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
 from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame, get_zed_remote_recorder
@@ -81,7 +82,10 @@ class LoggingOptions(tk.Frame, object):
         rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
         rosbag_config.grid(row=1, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
 
-        self.loggers = [pupil_config, zed_config, zed_node_config, rosbag_config]
+        goal_transform_publisher_config = GoalTransformPublisherConfigFrame(self, initial_config)
+        goal_transform_publisher_config.grid(row=4, column=0, sticky="nesw")
+
+        self.loggers = [pupil_config, zed_config, zed_node_config, rosbag_config, goal_transform_publisher_config]
 
     def _set_data_root(self):
         data_root = tkfile.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -146,9 +150,11 @@ class LoggingOptions(tk.Frame, object):
 def get_log_dir(config):
     return config.get(LOGGING_CONFIG_NAME, {}).get('data_dir', None)
 
-def get_loggers(config):
+def get_loggers(goals, config):
     if LOGGING_CONFIG_NAME not in config:
         return []
+
+    log_trial_init(goals, config)  # TODO: make this a "logger"?
 
     config = config[LOGGING_CONFIG_NAME]
     log_dir = config.get('data_dir', None)
@@ -174,6 +180,10 @@ def get_loggers(config):
         zed_node_logger = get_zed_node_recorder(log_dir, config)
         if zed_node_logger is not None:
             loggers.append(zed_node_logger)
+
+        goal_transform_publisher = get_goal_transform_publisher(goals)
+        if goal_transform_publisher is not None:
+            loggers.append(goal_transform_publisher)
     
     return loggers
 

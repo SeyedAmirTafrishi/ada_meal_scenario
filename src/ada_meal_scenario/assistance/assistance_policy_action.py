@@ -134,13 +134,10 @@ def filter_goals(prev_result, config, *args, **kwargs):
 
 def run_assistance_on_goals(prev_result, config, status_cb):
     true_goals = prev_result
-    # Log the morsels to file
-    log_trial_init(true_goals, config)
-
     # collect async loggers
     # AdaHandler handles logging its own data in-thread
     # but loggers that just need to start and stop are passed as separate objects
-    loggers = get_loggers(config)
+    loggers = get_loggers(true_goals, config)
 
     status_cb('Starting trial')
     return AdaHandler(
