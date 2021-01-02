@@ -8,7 +8,7 @@ class OptionSelector(Tkinter.Frame, object):
         'selectcolor': "#cc0000"
     }
 
-    def __init__(self, parent, title, option_names, option_values=None, default_selection=None):
+    def __init__(self, parent, title, option_names, option_values=None, default_selection=None, **kwargs):
         super(OptionSelector, self).__init__(parent)
 
         label_font = tkFont.nametofont("TkDefaultFont").copy()
@@ -23,14 +23,14 @@ class OptionSelector(Tkinter.Frame, object):
 
         self.buttons = []
         for idx, text in enumerate(option_names):
-            button = Tkinter.Radiobutton(self, text=text, variable=self.variable, value=idx,
-                                         **OptionSelector._BUTTON_CONFIG)
+            button = Tkinter.Radiobutton(self, text=text, variable=self.variable, value=idx, **kwargs)
+            button.configure(**OptionSelector._BUTTON_CONFIG)
             button.grid(row=1+idx, column=0, sticky=Tkinter.E+Tkinter.W)
             self.buttons.append(button)
 
         if default_selection is not None:
             if not isinstance(default_selection, int):
-                default_selection = option_values.index(default_selection)
+                default_selection = self.option_values.index(default_selection)
             self.buttons[default_selection].select()
 
     def get_value(self):
