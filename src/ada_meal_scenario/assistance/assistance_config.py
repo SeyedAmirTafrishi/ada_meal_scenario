@@ -1,168 +1,122 @@
 from collections import OrderedDict
 from ada_teleoperation.UserInputMapper import list_profiles
+import ada_assistance_policy.GoalPredictor
+import ada_assistance_policy.GazeBasedPredictor
 
 try:
     import Tkinter as tk
 except ImportError:  # python 3
     import tkinter as tk
+import ttk
 
 from ada_meal_scenario.gui_frames import OptionSelector
 
+ASSISTANCE_CONFIG_NAME = 'assistance_config'
 
-ASSISTANCE_CONFIG_NAME = 'ada_handler'
+_DIRECT_TELEOP = "Direct teleop"
+_SHARED_AUTO = "Shared autonomy"
+_FULL_AUTO = "Full autonomy"
+_SHARED_AUTO_FIXED = "Shared autonomy (fixed magnitude)"
+_BLEND = "Blend"
 
-
-_METHOD_SELECTOR_VALS = OrderedDict([
-    [
-        'Direct Teleop', {
-            'direct_teleop_only': True,
-            'blend_only': False,
-            'fix_magnitude_user_command': False,
-            'gamma': 0.,
-            'pick_goal': False,
-        }
-    ],
-    [
-        'Shared Auton Lvl 1', {
-            'direct_teleop_only': False,
-            'blend_only': False,
-            'fix_magnitude_user_command': False,
-            'gamma': 0.33,
-            'pick_goal': False
-        }
-    ],
-    [
-        'Shared Auton Lvl 2', {
-            'direct_teleop_only': False,
-            'blend_only': False,
-            'fix_magnitude_user_command': False,
-            'gamma': 0.67,
-            'pick_goal': False
-        }
-    ],
-    [
-        'Full Auton User Goal', {
-            'direct_teleop_only': False,
-            'blend_only': False,
-            'fix_magnitude_user_command': False,
-            'gamma': 1.,
-            'pick_goal': False
-        }
-    ],
-    [
-        'Full Auton Random Goal', {
-            'direct_teleop_only': False,
-            'blend_only': False,
-            'fix_magnitude_user_command': False,
-            'gamma': 1.,
-            'pick_goal': True
-        }
-    ],
-])
-
-_TRANSITION_FUNCTION_SELECTOR_VALS = OrderedDict(
-    [['a+u', lambda g: lambda a,u: a+u,
-    ],
-    ['gamma*a + (1-gamma)*u', lambda g: lambda a,u: g*a+(1-g)*u,
-    ],
-    ['2*gamma*a + (2-2*gamma)*u', lambda g: lambda a,u: 2*g*a+2*(1-g)*u
-    ]])
-
-_PREDICTOR_SELECTOR_VALS = OrderedDict([
-    ['Policy', {
-        'predict_policy': True,
-        'predict_gaze': False
-    }],
-    ['Gaze', {
-        'predict_policy': False,
-        'predict_gaze': True
-    }],
-    ['Merged', {
-        'predict_policy': True,
-        'predict_gaze': True
-    }],
-])
+def _validate_float(val):
+    if not val:
+        return True
+    try:
+        float(val)
+    except ValueError:
+        return False
+    else:
+        return True
 
 class AssistanceConfigFrame(tk.Frame, object):
-
-
     def __init__(self, parent, initial_config):
         super(AssistanceConfigFrame, self).__init__(parent)
 
         initial_config = initial_config.get(ASSISTANCE_CONFIG_NAME, {})
 
-        sticky = tk.N+tk.S+tk.E+tk.W
-
         self.method_selector = OptionSelector(
             self,
             title="Method:",
-            option_names=_METHOD_SELECTOR_VALS.keys(),
-            default_selection=initial_config.get('method_index', 4))
+            option_names=[
+                _DIRECT_TELEOP,
+                _SHARED_AUTO,
+                _FULL_AUTO,
+                _SHARED_AUTO_FIXED,
+                _BLEND
+            ],
+            default_selection=initial_config.get('method', 0),
+            command=self._update_method)
         self.method_selector.grid(row=0,
                                   column=0,
                                   padx=2,
                                   pady=2,
-                                  sticky=sticky)
+                                  sticky="new")
         
+        self._gamma_label = tk.Label(self, text="g (u_f = 2*g*a + 2*(1-g)*u):")
+        self._gamma_val = tk.StringVar()
+        self._gamma_val.set(str(initial_config.get("g", 0.5)))
+        self._gamma_entry = ttk.Combobox(self, textvariable=self._gamma_val, values=["0.5", "0.33", "0.67"])
+        self.register(_validate_float)
+        self._gamma_entry.configure(validate='all', validatecommand=(_validate_float, "%P"))
+        self._gamma_label.grid(row=1, column=0, sticky="nw")
+        self._gamma_entry.grid(row=2, column=0, sticky="new")
+
         self.input_profile_selector = OptionSelector(
             self,
             title='Input Profile:',
             option_names=list_profiles(),
-            default_selection=0
+            default_selection=initial_config.get("input_profile", 0)
         )
-        self.input_profile_selector.grid(row=0, column=1, padx=2, pady=2, sticky=sticky)
+        self.input_profile_selector.grid(row=0, column=1, padx=2, pady=2, sticky="new")
 
-        self.transition_function_selector = OptionSelector(
-            self,
-            title="Transition Function:",
-            option_names=_TRANSITION_FUNCTION_SELECTOR_VALS.keys(),
-            default_selection=initial_config.get('transition_function_index', 0))
-        self.transition_function_selector.grid(row=0,
-                                               column=2,
-                                               padx=2,
-                                               pady=2,
-                                               sticky=sticky)
+        self._pred_frame = tk.Frame(self)
+        self._pred_frame.grid(row=0, column=2, rowspan=3, sticky="nesw")
 
-        self.prediction_selector = OptionSelector(
-            self,
-            title="Prediction Method",
-            option_names=_PREDICTOR_SELECTOR_VALS.keys(),
-            default_selection=initial_config.get('prediction_index', 0))
-        self.prediction_selector.grid(row=0,
-                                      column=3,
-                                      padx=2,
-                                      pady=2,
-                                      sticky=sticky)
+        self._pred_policy_config = ada_assistance_policy.GoalPredictor.PolicyPredictorConfigFrame(self._pred_frame, initial_config.get("prediction", {}))
+        self._pred_policy_config.pack(side=tk.TOP, anchor="nw", fill=tk.X, expand=True)
+        self._pred_gaze_config = ada_assistance_policy.GazeBasedPredictor.GazeBasedPredictorConfigFrame(self._pred_frame, initial_config.get("prediction", {}))
+        self._pred_gaze_config.pack(side=tk.TOP, anchor="nw", fill=tk.X, expand=True)
+
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.columnconfigure(2, weight=1)
+
+    def _update_method(self):
+        # enable/disable stuff based on method
+        cur_method = self.method_selector.get_value()
+        shared_auto = cur_method in [ _SHARED_AUTO, _SHARED_AUTO_FIXED ]
+        self._gamma_entry.configure(state=tk.NORMAL if shared_auto else tk.DISABLED)
 
     def get_config(self):
-        config = {
+        pred_config = dict()
+        pred_config.update(self._pred_policy_config.get_config())
+        pred_config.update(self._pred_gaze_config.get_config())
+        return { ASSISTANCE_CONFIG_NAME: {
             'method': self.method_selector.get_value(),
-            'transition_function': self.transition_function_selector.get_value(),
-            'prediction': self.prediction_selector.get_value(),
-            'input_profile_name': self.input_profile_selector.get_value()
-        }
-        return {ASSISTANCE_CONFIG_NAME: config}
+            'g': float(self._gamma_val.get()),
+            'prediction': pred_config,
+            'input_profile': self.input_profile_selector.get_value(),
+        } }
 
     def set_state(self, state):
         self.method_selector.set_state(state)
-        self.transition_function_selector.set_state(state)
-        self.prediction_selector.set_state(state)
+        self._gamma_entry.configure(state=state)
+        self._update_method()  # update the _gamma state to match
         self.input_profile_selector.set_state(state)
+        self._pred_policy_config.set_state(state)
+        self._pred_gaze_config.set_state(state)
 
 def get_ada_handler_config(config):
-    config = config[ASSISTANCE_CONFIG_NAME]
+    config = config.get(ASSISTANCE_CONFIG_NAME, {})
+    g = config.get('g', 0.5)
 
-    out = {
-        'input_profile_name': config['input_profile_name']
+    return {
+        'input_profile_name': config.get('input_profile', ''),
+        'direct_teleop_only': config.get('method', '') == _DIRECT_TELEOP,
+        'blend_only': config.get('method', '') == _BLEND,
+        'pick_goal': config.get('method', '') == _FULL_AUTO,
+        'fix_magnitude_user_command': config.get('method', '') == _SHARED_AUTO_FIXED,
+        'transition_function': lambda a,u: 2*g*a + 2*(1-g)*u,
+        'prediction_config': config.get('prediction', {})
     }
-    out.update(_METHOD_SELECTOR_VALS[config['method']])
-    out.update(_PREDICTOR_SELECTOR_VALS[config['prediction']])
-
-    
-    # lambda is bad in the config directly bc we want to save/load it
-    # so use a string lookup and resolve it on trial start
-    out['transition_function'] = _TRANSITION_FUNCTION_SELECTOR_VALS[config['transition_function']](out['gamma'])
-    del out['gamma']
-
-    # clear out the stuff we used to save 
-    return out
