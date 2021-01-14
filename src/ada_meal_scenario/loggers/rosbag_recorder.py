@@ -74,26 +74,24 @@ class RosbagRecorder:
             self.stop()
 
 
-class RosbagRecorderConfigFrame(tk.Frame, object):
+class RosbagRecorderConfigFrame(tk.LabelFrame, object):
     def __init__(self, parent, initial_config={}):
-        super(RosbagRecorderConfigFrame, self).__init__(parent)
+        super(RosbagRecorderConfigFrame, self).__init__(parent, text='ROS Bag')
         initial_config = initial_config.get(ROSBAG_RECORDER_CONFIG_NAME, {})
 
         self.enabled_var = tk.BooleanVar(value=initial_config.get('enabled', False))
-        self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var)
-        self.enabled_label = tk.Label(self, text="Enable ROS Bag recording")
-        self.enabled_checkbox.grid(row=0, column=0, sticky=tk.E+tk.W)
-        self.enabled_label.grid(row=0, column=1, sticky=tk.W)
+        self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var, text="Enable ROS Bag recording")
+        self.enabled_checkbox.grid(row=0, column=0, columnspan=2, sticky=tk.N+tk.W)
 
+        self.topics_label = tk.Label(self, text='Topics to record')
+        self.topics_label.grid(row=1, column=0, columnspan=2, sticky=tk.N+tk.W)
         self.topics_listbox_frame = tk.Frame(self)
         self.topics_listbox_scroll = tk.Scrollbar(self.topics_listbox_frame, orient=tk.VERTICAL)
         self.topics_listbox = tk.Listbox(self.topics_listbox_frame, selectmode=tk.MULTIPLE, exportselection=0, yscrollcommand=self.topics_listbox_scroll.set)
         self.topics_listbox_scroll.configure(command=self.topics_listbox.yview)
         self.topics_listbox_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.topics_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
-        self.topics_listbox_frame.grid(row=1, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
-        self.topics_label = tk.Label(self, text='Topics to record')
-        self.topics_label.grid(row=1, column=1, sticky=tk.N+tk.W)
+        self.topics_listbox_frame.grid(row=2, column=0, columnspan=2, sticky=tk.N+tk.E+tk.S+tk.W)
 
         # initialize the topics
         cur_topics = set(topic for topic, _ in rospy.get_published_topics())
@@ -109,8 +107,11 @@ class RosbagRecorderConfigFrame(tk.Frame, object):
         self.topics_add_entry = tk.Entry(self, textvariable=self.topics_add_var)
         self.topics_add_entry.bind("<Return>", self._add_topic)
         self.topics_add_button = tk.Button(self, text='Add', command=self._add_topic)
-        self.topics_add_entry.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W)
-        self.topics_add_button.grid(row=2, column=1, sticky=tk.W)
+        self.topics_add_entry.grid(row=3, column=0, sticky=tk.N+tk.E+tk.W)
+        self.topics_add_button.grid(row=3, column=1, sticky=tk.W)
+
+        self.rowconfigure(2, weight=1)
+        self.columnconfigure(0, weight=1)
 
     def _add_topic(self, _=None):
         topic = self.topics_add_var.get()

@@ -28,25 +28,29 @@ class LoggingOptions(tk.Frame, object):
         super(LoggingOptions, self).__init__(parent)
         initial_config = initial_config.get(LOGGING_CONFIG_NAME, {})
 
-        label_font = tkfont.nametofont("TkDefaultFont").copy()
-        label_font.configure(weight='bold')
+        self.left_column = tk.Frame(self)
+        self.left_column.grid(row=0, column=0, sticky='nesw')
+        self.left_column.columnconfigure(0, weight=1)
+        self.right_column = tk.Frame(self)
+        self.right_column.grid(row=0, column=1, sticky='nesw')
+        self.right_column.columnconfigure(0, weight=1)
 
-        self.label = tk.Label(
-            self, text="Logging Options", font=label_font)
-        self.label.grid(row=0, sticky=tk.E+tk.W)
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
 
 
-        self.logging_frame = tk.Frame(self)
+        self.logging_frame = tk.LabelFrame(self.left_column, text='Location')
         base_dir = initial_config.get('base_dir', 
                 os.path.join(rospkg.RosPack().get_path('ada_meal_scenario'), 'trajectory_data'))
         
         # choose top dir for logging
         self.data_root_var = tk.StringVar(value=base_dir)
         self.data_root_label = tk.Label(
-            self.logging_frame, textvariable=self.data_root_var, wraplength=200, justify=tk.LEFT)
-        self.data_root_label.grid(row=0, column=0, sticky=tk.W)
+            self.logging_frame, textvariable=self.data_root_var, wraplength=300, justify=tk.LEFT)
+        self.data_root_label.grid(row=0, column=0, columnspan=2, sticky='nw')
+        self.data_root_label.bind('<Configure>', lambda e: e.widget.configure(wraplength=e.widget.winfo_width()))
         self.data_root_button = tk.Button(self.logging_frame, text='Select data directory', command=self._set_data_root)
-        self.data_root_button.grid(row=0, column=1, sticky=tk.W)
+        self.data_root_button.grid(row=1, column=0, columnspan=2, sticky='nw')
 
         # choose user id
         self.user_id_var = tk.StringVar()
@@ -54,36 +58,38 @@ class LoggingOptions(tk.Frame, object):
         self.user_id_var.trace("w", self._validate_user_id)
         self.user_id_entry = tk.Entry(
             self.logging_frame, textvariable=self.user_id_var)
-        self.user_id_entry.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W)
+        self.user_id_entry.grid(row=2, column=1, sticky=tk.N+tk.E+tk.W)
         self.user_id_label = tk.Label(self.logging_frame, text='User ID')
-        self.user_id_label.grid(row=2, column=1, sticky=tk.N+tk.W)
+        self.user_id_label.grid(row=2, column=0, sticky=tk.N+tk.W)
         self.user_id_auto_var = tk.IntVar()
         self.user_id_auto_var.set(initial_config.get('auto_user_id', True))
         self.user_id_auto_check = tk.Checkbutton(self.logging_frame, variable=self.user_id_auto_var, text='Auto-increment ID', command=self._set_user_id_auto)
-        self.user_id_auto_check.grid(row=3, column=0, columnspan=2)
+        self.user_id_auto_check.grid(row=3, column=0, columnspan=2, sticky='nw')
 
         # initialize fields
         self.user_id_orig_bg = self.user_id_entry.cget("bg")
         self._set_user_id_auto()
+        self.logging_frame.columnconfigure(1, weight=1)
 
-        self.logging_frame.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
+        self.logging_frame.grid(row=0, column=0, padx=1, pady=1, sticky='nesw')
 
 
         # additional logging options
-        pupil_config = PupilRecorderConfigFrame(self, initial_config)
-        pupil_config.grid(row=2, column=0, sticky=tk.N+tk.E+tk.W+tk.S)
+        pupil_config = PupilRecorderConfigFrame(self.left_column, initial_config)
+        pupil_config.grid(row=1, column=0, padx=1, pady=1, sticky='nesw')
         
-        zed_config = RemoteRecorderConfigFrame(self, initial_config)
-        zed_config.grid(row=2, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        zed_config = RemoteRecorderConfigFrame(self.left_column, initial_config)
+        zed_config.grid(row=2, column=0, padx=1, pady=1, sticky='nesw')
         
-        zed_node_config = ZedNodeRecorderConfigFrame(self, initial_config)
-        zed_node_config.grid(row=3, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
-        
-        rosbag_config = RosbagRecorderConfigFrame(self, initial_config)
-        rosbag_config.grid(row=1, column=1, sticky=tk.N+tk.E+tk.W+tk.S)
+        zed_node_config = ZedNodeRecorderConfigFrame(self.left_column, initial_config)
+        zed_node_config.grid(row=3, column=0, padx=1, pady=1, sticky='nesw')
 
-        goal_transform_publisher_config = GoalTransformPublisherConfigFrame(self, initial_config)
-        goal_transform_publisher_config.grid(row=4, column=0, sticky="nesw")
+        goal_transform_publisher_config = GoalTransformPublisherConfigFrame(self.left_column, initial_config)
+        goal_transform_publisher_config.grid(row=4, column=0, padx=1, pady=1, sticky='nesw')
+
+        rosbag_config = RosbagRecorderConfigFrame(self.right_column, initial_config)
+        rosbag_config.grid(row=0, column=0, padx=1, pady=1, sticky='nesw')
+        self.right_column.rowconfigure(0, weight=1)
 
         self.loggers = [pupil_config, zed_config, zed_node_config, rosbag_config, goal_transform_publisher_config]
 

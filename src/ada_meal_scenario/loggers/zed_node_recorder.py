@@ -58,24 +58,23 @@ class ZedNodeRecorder:
                 logger.warn('Exception when stopping recording on ZED node: {}'.format(str(e)))
 
 
-class ZedNodeRecorderConfigFrame(tk.Frame, object):
+class ZedNodeRecorderConfigFrame(tk.LabelFrame, object):
     def __init__(self, parent, initial_config):
-        super(ZedNodeRecorderConfigFrame, self).__init__(parent)
+        super(ZedNodeRecorderConfigFrame, self).__init__(parent, text='ZED Node')
         initial_config = initial_config.get(ZED_NODE_RECORDER_CONFIG_NAME, {})
 
         self.enabled_var = tk.BooleanVar(value=AVAILABLE and initial_config.get('enabled', False))
         self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var,
-                state=tk.NORMAL if AVAILABLE else tk.DISABLED)
-        self.enabled_label = tk.Label(self, text="Enable ZED node recording")
-        self.enabled_checkbox.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E)
-        self.enabled_label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
-
+                state=tk.NORMAL if AVAILABLE else tk.DISABLED, text="Enable ZED node recording")
+        self.enabled_checkbox.grid(row=0, column=0, columnspan=2, sticky=tk.N+tk.W)
 
         self.topic_var = tk.StringVar(value=initial_config.get('topic', '/zed'))
         self.topic_entry = tk.Entry(self, textvariable=self.topic_var, state=tk.NORMAL if AVAILABLE else tk.DISABLED)
-        self.topic_label = tk.Label(self, text='Parent topic of ZED node')
-        self.topic_entry.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
-        self.topic_label.grid(row=1, column=1, sticky=tk.N+tk.S+tk.W)
+        self.topic_label = tk.Label(self, text='Parent topic')
+        self.topic_label.grid(row=1, column=0, sticky=tk.N+tk.S+tk.W)
+        self.topic_entry.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+
+        self.columnconfigure(1, weight=1)
 
     def get_config(self):
         return { ZED_NODE_RECORDER_CONFIG_NAME: {

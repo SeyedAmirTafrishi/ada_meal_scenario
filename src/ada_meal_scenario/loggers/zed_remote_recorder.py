@@ -50,24 +50,24 @@ class RemoteRecorder:
                 logger.warn('Exception when stopping remote ZED recorder: {}'.format(str(e)))
 
 
-class RemoteRecorderConfigFrame(tk.Frame, object):
+class RemoteRecorderConfigFrame(tk.LabelFrame, object):
     def __init__(self, parent, initial_config):
-        super(RemoteRecorderConfigFrame, self).__init__(parent)
+        super(RemoteRecorderConfigFrame, self).__init__(parent, text='ZED Remote Recorder')
         initial_config = initial_config.get(ZED_RECORDER_CONFIG_NAME, {})
 
         self.enabled_var = tk.BooleanVar(value=AVAILABLE and initial_config.get('enabled', False))
         self.enabled_checkbox = tk.Checkbutton(self, variable=self.enabled_var,
-                state=tk.NORMAL if AVAILABLE else tk.DISABLED)
-        self.enabled_label = tk.Label(self, text="Enable ZED recording")
-        self.enabled_checkbox.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E)
-        self.enabled_label.grid(row=0, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+                state=tk.NORMAL if AVAILABLE else tk.DISABLED, text="Enable ZED remote recording")
+        self.enabled_checkbox.grid(row=0, column=0, columnspan=2, sticky=tk.N+tk.W)
 
 
         self.topic_var = tk.StringVar(value=initial_config.get('topic', '/zed_remote_recorder'))
         self.topic_entry = tk.Entry(self, textvariable=self.topic_var, state=tk.NORMAL if AVAILABLE else tk.DISABLED)
-        self.topic_label = tk.Label(self, text='Topic for ZED remote recorder service')
-        self.topic_entry.grid(row=1, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
-        self.topic_label.grid(row=1, column=1, sticky=tk.N+tk.S+tk.W)
+        self.topic_label = tk.Label(self, text='Topic')
+        self.topic_entry.grid(row=1, column=1, sticky=tk.N+tk.S+tk.E+tk.W)
+        self.topic_label.grid(row=1, column=0, sticky=tk.N+tk.S+tk.W)
+
+        self.columnconfigure(1, weight=1)
 
     def get_config(self):
         return { ZED_RECORDER_CONFIG_NAME: {
