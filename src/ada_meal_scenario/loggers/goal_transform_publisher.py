@@ -37,7 +37,7 @@ class GoalTransformPublisherConfigFrame(tk.Frame, object):
 def build_tf_msg(obj):
     return geometry_msgs.msg.TransformStamped(
         header=std_msgs.msg.Header(
-            frame_id="map"
+            frame_id="world"
         ),
         child_frame_id=obj.name,
         transform=geometry_msgs.msg.Transform(
