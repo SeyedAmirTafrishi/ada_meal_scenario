@@ -128,8 +128,8 @@ def filter_goals(prev_result, config, *args, **kwargs):
         if ok:
             ok_goals.append(goal)
         else:
-            logger.warning('removed {}: no valid IK found'.format(goal.GetName()))
-            config['env'].Remove(goal)
+            logger.warning('removed {}: no valid IK found'.format(goal.name))
+            config['env'].Remove(config['env'].GetKinBody(goal.name))
     return ok_goals
 
 def run_assistance_on_goals(prev_result, config, status_cb):
