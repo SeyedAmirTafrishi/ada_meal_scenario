@@ -10,8 +10,9 @@ from ada_assistance_policy.AdaHandler import AdaHandler, AdaHandlerConfig
 from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize
-from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config
+from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config, is_autonomous
 from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
+from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -133,18 +134,48 @@ def filter_goals(prev_result, config, *args, **kwargs):
     return ok_goals
 
 def run_assistance_on_goals(prev_result, config, status_cb):
-    true_goals = prev_result
+    goals = prev_result
     # collect async loggers
     # AdaHandler handles logging its own data in-thread
     # but loggers that just need to start and stop are passed as separate objects
-    loggers = get_loggers(true_goals, config)
+    loggers = get_loggers(goals, config)
 
-    status_cb('Starting trial')
-    return AdaHandler(
-        config['env'], config['robot'],
-        AdaHandlerConfig.create(goals=true_goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
-        loggers)
 
+    if is_autonomous(config):
+        goal_idx = np.random.randint(len(goals))
+        true_goal = goals[goal_idx]
+        status_cb('Autonomously going to goal {} ({})'.format(goal_idx, true_goal.name))
+
+        # TODO: make the normal one log like this too
+        @futurize(blocking=True)
+        def start_logging(*args, **kwargs):
+            print('starting log')
+            for logger in loggers:
+                logger.start()
+
+        @futurize(blocking=True)
+        def stop_logging(*args, **kwargs):
+            print('stopping log')
+            for logger in loggers:
+                logger.stop()
+
+        @futurize(blocking=True)
+        def return_goals(*args, **kwargs):
+            return goals
+
+        return ActionSequenceFactory(
+            ).then(start_logging
+            ).then(create_move_robot_to_end_effector_pose_action(true_goal.target_poses[0])
+            ).then(stop_logging
+            ).then(return_goals
+            ).run(prev_result, config, status_cb)
+
+    else:
+        status_cb('Starting trial')
+        return AdaHandler(
+            config['env'], config['robot'],
+            AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
+            loggers)
 
 def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position):
     return make_goal_builder(get_robot_pos_fn

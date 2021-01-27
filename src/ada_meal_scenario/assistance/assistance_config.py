@@ -120,3 +120,17 @@ def get_ada_handler_config(config):
         'transition_function': lambda a,u: 2*g*a + 2*(1-g)*u,
         'prediction_config': config.get('prediction', {})
     }
+
+def is_autonomous(config):
+    config = config.get(ASSISTANCE_CONFIG_NAME, {})
+    return config.get('method', '') == _FULL_AUTO
+
+def as_autonomous(config):
+    cfg = config.copy()
+    cfg[ASSISTANCE_CONFIG_NAME]['method'] = _FULL_AUTO
+    return cfg
+
+def as_direct_teleop(config):
+    cfg = config.copy()
+    cfg[ASSISTANCE_CONFIG_NAME]['method'] = _DIRECT_TELEOP
+    return cfg
