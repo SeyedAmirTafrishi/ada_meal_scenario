@@ -96,7 +96,7 @@ class LoggedActionSequence(ActionSequence):
 
 class ActionSequenceFactory:
     def __init__(self, action_factories=[]):
-        self.action_factories = action_factories
+        self.action_factories = action_factories[:]
 
     def __iter__(self):
         # enable easier chaining
@@ -111,7 +111,11 @@ class ActionSequenceFactory:
         return self # for chaining
     
     def __call__(self, *args, **kwargs):
-        return ActionSequence(self.action_factories, *args, **kwargs)
+        try:
+            return ActionSequence(self.action_factories, *args, **kwargs)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            self.set_exception(e)
 
     def run(self, *args, **kwargs):
         return self.__call__(*args, **kwargs)
@@ -125,6 +129,7 @@ def defer_threaded(fn, args=(), kwargs={}):
         try:
             future.set_result(fn(*args, **kwargs))
         except Exception as ex:
+            import traceback; traceback.print_exc()
             future.set_exception(ex)
     future._handle = threading.Thread(target=run, args=args, kwargs=kwargs)
     future._handle.daemon = True  # not part of constructor until python3.3
@@ -144,6 +149,7 @@ def defer_blocking(fn, args=(), kwargs={}):
     try:
         future.set_result(fn(*args, **kwargs))
     except Exception as ex:
+        import traceback; traceback.print_exc()
         future.set_exception(ex)
     return future
 
