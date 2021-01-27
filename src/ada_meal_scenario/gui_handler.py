@@ -76,7 +76,7 @@ class GuiHandler(object):
 
         self.quit_button = Tkinter.Button(
             self.start_frame, text="Quit", command=self._quit_button_callback)
-        self.quit_button.grid(row=0, column=3, sticky=Tkinter.W+Tkinter.E, padx=5)
+        self.quit_button.grid(row=0, column=3, sticky='ne', padx=5)
 
         # add a status bar
         self.status_var = Tkinter.StringVar(value='Ready')
@@ -89,7 +89,7 @@ class GuiHandler(object):
         self.trial = None
         self.set_waiting_for_trial()
 
-    def add_config_frame(self, fn, name):
+    def add_config_frame(self, fn, name, button_sticky='new'):
         if self.trial is not None:
             raise RuntimeError('Cannot add config frame while trial is running!')
         frame = fn(self.config_frame, self._initial_config)
@@ -97,7 +97,7 @@ class GuiHandler(object):
         self.set_waiting_for_trial()
 
         select_button = Tkinter.Button(self.config_button_frame, text=name, command=lambda: self._highlight_config(frame))
-        select_button.grid(column=0, sticky='new')
+        select_button.grid(column=0, sticky=button_sticky)
         self.config_selector_buttons.append(select_button)
 
         if self.active_frame is None:
@@ -187,7 +187,7 @@ class GuiHandler(object):
         self.set_waiting_for_trial()
 
 
-    def _start_button_callback(self):
+    def _start_button_callback(self, trial_fn=None):
         # get the config
         try:
             cfg = self.get_config()
@@ -199,7 +199,9 @@ class GuiHandler(object):
         self.set_trial_running()
 
         # call the callback with the current config
-        self.trial = self.start_trial_callback(config=cfg, status_cb=self.set_status)
+        if trial_fn is None:
+            trial_fn = self.start_trial_callback
+        self.trial = trial_fn(config=cfg, status_cb=self.set_status)
 
     def _cancel_button_callback(self):
         # disable the cancel button to remove duplicate calls
@@ -219,7 +221,6 @@ class GuiHandler(object):
             with open(self.config_file, 'w') as f:
                 yaml.dump(self.get_config(), f)
             self.status_var.set('Config file saved to {}'.format(self.config_file))
-
 
     def _quit_button_callback(self):
         self.quit_callback()
