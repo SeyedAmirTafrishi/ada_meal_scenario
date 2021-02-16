@@ -23,6 +23,7 @@
   <run_depend>ada_teleoperation</run_depend>
   <run_depend>openni2_launch</run_depend>
   <run_depend>joy</run_depend>
+  <run_depend>python-tk</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
