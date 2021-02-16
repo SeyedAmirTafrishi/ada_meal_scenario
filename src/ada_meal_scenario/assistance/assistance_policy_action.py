@@ -82,13 +82,42 @@ def check_ik_for_pose(robot, desired_ee_pose):
         # if it fails, call FindIKSolutions, which is slower but samples other start configurations
         if ik_sol is None:
             ik_sols = robot.GetActiveManipulator().FindIKSolutions(desired_ee_pose, [], ik_filter_options, False, True)  # release GIL so GUI doesn't freeze
-            if ik_sols is None:
-                return False
-    return True
+            if ik_sols is None or len(ik_sols) == 0:
+                return False, None
+            else:
+                return True, ik_sols[0]
+    return True, ik_sol
+
+def set_ghost_to_ik(name, robot, ik):
+    pass
+    # ghost_robot = robot.GetEnv().GetRobot(name)
+    # if ghost_robot is None:
+    #     ghost_robot = openravepy.RaveCreateRobot(robot.GetEnv(), robot.GetXMLId())
+    #     ghost_robot.Clone(robot, openravepy.openravepy_int.CloningOptions.Bodies)
+    #     ghost_robot.SetName(name)
+    #     ghost_robot.Enable(False)  # don't count collisions
+    #     ghost_robot.arm = ghost_robot.GetManipulators()[0]
+    #     ghost_robot.SetActiveManipulator(ghost_robot.arm)
+    #     robot.GetEnv().Add(ghost_robot)
+    #     for link in ghost_robot.GetLinks():
+    #         if link in ghost_robot.arm.GetChildLinks():
+    #             # part of end-effector
+    #             for geom in link.GetGeometries():
+    #                 geom.SetTransparency(0.4)
+    #         else:
+    #             link.SetVisible(False)
+    
+    # ghost_robot.SetActiveDOFValues(ik)
+
 
 def check_ik_for_goal(robot, goal):
     logger.info('checking IK for {}'.format(goal.name))
-    return (any(check_ik_for_pose(robot, tf) for tf in goal.target_poses), goal)
+    for tf in goal.target_poses:
+        ok, ik = check_ik_for_pose(robot, tf)
+        if ok:
+            set_ghost_to_ik('ghost_{}'.format(goal.name), robot, ik)
+            return True, goal
+    return False, goal
 
 
 def make_goal_builder(get_robot_pos_fn=get_prestab_position):
@@ -118,9 +147,11 @@ def make_goal_builder(get_robot_pos_fn=get_prestab_position):
         logger.debug('got {} goals'.format(len(goals)))
         return goals
         
-    return ActionSequenceFactory([build_goals]
+    return ActionSequenceFactory(
+            ).then(build_goals
             ).then(make_async_mapper(check_ik_for_goal)
-            ).then(filter_goals)
+            ).then(filter_goals
+            )
 
 @futurize(blocking=True)
 def filter_goals(prev_result, config, *args, **kwargs):
@@ -133,49 +164,60 @@ def filter_goals(prev_result, config, *args, **kwargs):
             config['env'].Remove(config['env'].GetKinBody(goal.name))
     return ok_goals
 
-def run_assistance_on_goals(prev_result, config, status_cb):
+def move_to_goal(prev_result, config, status_cb, goal_idx=None):
     goals = prev_result
     # collect async loggers
     # AdaHandler handles logging its own data in-thread
     # but loggers that just need to start and stop are passed as separate objects
     loggers = get_loggers(goals, config)
 
-
-    if is_autonomous(config):
+    if goal_idx is None:
         goal_idx = np.random.randint(len(goals))
-        true_goal = goals[goal_idx]
-        status_cb('Autonomously going to goal {} ({})'.format(goal_idx, true_goal.name))
+    true_goal = goals[goal_idx]
+    status_cb('Autonomously going to goal {} ({})'.format(goal_idx, true_goal.name))
 
-        # TODO: make the normal one log like this too
-        @futurize(blocking=True)
-        def start_logging(*args, **kwargs):
-            print('starting log')
-            for logger in loggers:
-                logger.start()
+    # TODO: make the normal one log like this too
+    @futurize(blocking=True)
+    def start_logging(*args, **kwargs):
+        print('starting log')
+        for logger in loggers:
+            logger.start()
 
-        @futurize(blocking=True)
-        def stop_logging(*args, **kwargs):
-            print('stopping log')
-            for logger in loggers:
-                logger.stop()
+    @futurize(blocking=True)
+    def stop_logging(*args, **kwargs):
+        print('stopping log')
+        for logger in loggers:
+            logger.stop()
 
-        @futurize(blocking=True)
-        def return_goals(*args, **kwargs):
-            return goals
+    @futurize(blocking=True)
+    def return_goals(*args, **kwargs):
+        return goals
 
-        return ActionSequenceFactory(
-            ).then(start_logging
-            ).then(create_move_robot_to_end_effector_pose_action(true_goal.target_poses[0])
-            ).then(stop_logging
-            ).then(return_goals
-            ).run(prev_result, config, status_cb)
+    return ActionSequenceFactory(
+        ).then(start_logging
+        ).then(create_move_robot_to_end_effector_pose_action(true_goal.target_poses[0])
+        ).then(stop_logging
+        ).then(return_goals
+        ).run(prev_result, config, status_cb)
 
+def run_direct_teleop(prev_result, config, status_cb):
+    status_cb('Starting direct teleop')
+    goals = prev_result
+    loggers = get_loggers(goals, config)
+    cfg = AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config))
+    cfg = cfg._replace(direct_teleop_only=True)
+    return AdaHandler(config['env'], config['robot'], cfg, loggers)
+
+def run_assistance_on_goals(prev_result, config, status_cb):
+    if is_autonomous(config):
+        return move_to_goal(prev_result, config, status_cb)
     else:
         status_cb('Starting trial')
+        goals = prev_result
         return AdaHandler(
             config['env'], config['robot'],
             AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
-            loggers)
+            get_loggers(goals, config))
 
 def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position):
     return make_goal_builder(get_robot_pos_fn
