@@ -24,7 +24,7 @@ LOGGING_CONFIG_NAME = 'logging'
 
 class LoggingOptions(tk.Frame, object):
     __USER_ID_INVALID_BG__ = "#cc0000"
-    def __init__(self, parent, initial_config={}):
+    def __init__(self, parent, initial_config, run_fn):
         super(LoggingOptions, self).__init__(parent)
         initial_config = initial_config.get(LOGGING_CONFIG_NAME, {})
 

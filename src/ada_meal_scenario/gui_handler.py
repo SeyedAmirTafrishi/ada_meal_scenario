@@ -20,15 +20,19 @@ default_bg_color = None
 
 
 def _load_initial_config(fn):
+    cfg = None
     if fn is not None and os.path.isfile(fn):
         with open(fn, 'r') as f:
-            return yaml.load(f)
+            cfg = yaml.load(f)  # handle empty file
+    if cfg is not None:
+        return cfg
     else:
         return {}
 
 class GuiHandler(object):
-    def __init__(self, start_trial_callback, quit_callback, initial_config_file=None):
+    def __init__(self, start_trial_callback, quit_callback, initial_config_file=None, default_config={}):
         self.config_file = os.path.abspath(initial_config_file) if initial_config_file is not None else None
+        self._default_config = default_config.copy()
         self._initial_config = _load_initial_config(initial_config_file)
         
         self.master = Tkinter.Tk()
@@ -92,7 +96,7 @@ class GuiHandler(object):
     def add_config_frame(self, fn, name, button_sticky='new'):
         if self.trial is not None:
             raise RuntimeError('Cannot add config frame while trial is running!')
-        frame = fn(self.config_frame, self._initial_config)
+        frame = fn(self.config_frame, self._initial_config, self._start_button_callback)
         self.config_frames.append(frame)
         self.set_waiting_for_trial()
 
@@ -167,19 +171,20 @@ class GuiHandler(object):
         self.cancel_button.configure(state=Tkinter.DISABLED)
 
     def set_trial_finished(self):
-        # check how we ended
-        try:
-            res = self.trial.result(0)
-            self.status_var.set('Trial completed successfully')
-        except CancelledError:
-            self.status_var.set('Trial cancelled')
-        except TimeoutError:
-            # critical failure
-            assert False, "Trial ended but timed out accessing info!"
-        except Exception as ex:
-            # notify of the error
-            tkMessageBox.showerror(title="Trial error", message=str(ex))
-            self.status_var.set('Trial error: {}'.format(str(ex)))
+        if self.trial is not None:
+            # check how we ended
+            try:
+                res = self.trial.result(0)
+                self.status_var.set('Trial completed successfully')
+            except CancelledError:
+                self.status_var.set('Trial cancelled')
+            except TimeoutError:
+                # critical failure
+                assert False, "Trial ended but timed out accessing info!"
+            except Exception as ex:
+                # notify of the error
+                tkMessageBox.showerror(title="Trial error", message=str(ex))
+                self.status_var.set('Trial error: {}'.format(str(ex)))
 
         # clear the existing trial
         self.trial = None
@@ -187,13 +192,15 @@ class GuiHandler(object):
         self.set_waiting_for_trial()
 
 
-    def _start_button_callback(self, trial_fn=None):
+    def _start_button_callback(self, trial_fn=None, config_adjust={}):
         # get the config
         try:
             cfg = self.get_config()
+            cfg.update(config_adjust)
         except ValueError as e:
+            import traceback; traceback.print_exc()
             tkMessageBox.showerror(message=str(e))
-            return
+            return None
 
         # update enabled/disabled corresponding to running a trial
         self.set_trial_running()
@@ -201,7 +208,13 @@ class GuiHandler(object):
         # call the callback with the current config
         if trial_fn is None:
             trial_fn = self.start_trial_callback
-        self.trial = trial_fn(config=cfg, status_cb=self.set_status)
+        try:
+            self.trial = trial_fn(config=cfg, status_cb=self.set_status)
+            return self.trial
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            tkMessageBox.showerror(message=str(e))
+            self.set_trial_finished()
 
     def _cancel_button_callback(self):
         # disable the cancel button to remove duplicate calls
@@ -219,14 +232,17 @@ class GuiHandler(object):
             self.config_file = tkFileDialog.asksaveasfilename(title='Select location to save config file', defaultextension='.yaml')
         if self.config_file is not None:
             with open(self.config_file, 'w') as f:
-                yaml.dump(self.get_config(), f)
+                yaml.dump(self.get_config(default=False), f)
             self.status_var.set('Config file saved to {}'.format(self.config_file))
 
     def _quit_button_callback(self):
         self.quit_callback()
 
-    def get_config(self):
-        to_ret = dict()
+    def get_config(self, default=True):
+        if default:
+            to_ret = self._default_config.copy()
+        else:
+            to_ret = dict()
         for frame in self.config_frames:
             to_ret.update(frame.get_config())
         return to_ret

@@ -30,7 +30,7 @@ def _validate_float(val):
         return True
 
 class AssistanceConfigFrame(tk.Frame, object):
-    def __init__(self, parent, initial_config):
+    def __init__(self, parent, initial_config, run_fn):
         super(AssistanceConfigFrame, self).__init__(parent)
 
         initial_config = initial_config.get(ASSISTANCE_CONFIG_NAME, {})
