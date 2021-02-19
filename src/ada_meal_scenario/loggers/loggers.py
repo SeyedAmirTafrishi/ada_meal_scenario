@@ -13,6 +13,11 @@ import yaml
 
 import rospkg
 
+try:
+    import remote_video_recorder.logger_frame
+except ImportError:
+    remote_video_recorder = None
+
 from ada_teleoperation import DataRecordingUtils
 from ada_meal_scenario.loggers.goal_transform_publisher import GoalTransformPublisherConfigFrame, get_goal_transform_publisher
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
@@ -78,20 +83,24 @@ class LoggingOptions(tk.Frame, object):
         pupil_config = PupilRecorderConfigFrame(self.left_column, initial_config)
         pupil_config.grid(row=1, column=0, padx=1, pady=1, sticky='nesw')
         
-        zed_config = RemoteRecorderConfigFrame(self.left_column, initial_config)
-        zed_config.grid(row=2, column=0, padx=1, pady=1, sticky='nesw')
-        
         zed_node_config = ZedNodeRecorderConfigFrame(self.left_column, initial_config)
-        zed_node_config.grid(row=3, column=0, padx=1, pady=1, sticky='nesw')
+        zed_node_config.grid(row=2, column=0, padx=1, pady=1, sticky='nesw')
 
         goal_transform_publisher_config = GoalTransformPublisherConfigFrame(self.left_column, initial_config)
-        goal_transform_publisher_config.grid(row=4, column=0, padx=1, pady=1, sticky='nesw')
+        goal_transform_publisher_config.grid(row=3, column=0, padx=1, pady=1, sticky='nesw')
 
         rosbag_config = RosbagRecorderConfigFrame(self.right_column, initial_config)
         rosbag_config.grid(row=0, column=0, padx=1, pady=1, sticky='nesw')
         self.right_column.rowconfigure(0, weight=1)
 
-        self.loggers = [pupil_config, zed_config, zed_node_config, rosbag_config, goal_transform_publisher_config]
+        self.loggers = [pupil_config, zed_node_config, rosbag_config, goal_transform_publisher_config]
+        
+        if remote_video_recorder is not None:
+            remote_video_recorder_config = remote_video_recorder.logger_frame.RemoteRecorderConfigFrame(self.right_column, initial_config)
+            remote_video_recorder_config.grid(row=4, column=0, padx=1, pady=1, sticky='nesw')
+            self.loggers.append(remote_video_recorder_config)
+        
+
 
     def _set_data_root(self):
         data_root = tkfile.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -190,6 +199,11 @@ def get_loggers(goals, config):
         goal_transform_publisher = get_goal_transform_publisher(goals)
         if goal_transform_publisher is not None:
             loggers.append(goal_transform_publisher)
+
+        if remote_video_recorder is not None:
+            remote_video_logger = remote_video_recorder.logger_frame.get_remote_video_recorder(log_dir, config)
+            if remote_video_logger is not None:
+                loggers.append(remote_video_logger)
     
     return loggers
 
