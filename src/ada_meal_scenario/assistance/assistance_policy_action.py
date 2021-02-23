@@ -12,7 +12,7 @@ from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config, is_autonomous
 from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
-from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action
+from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action, create_move_hand_action
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -166,6 +166,8 @@ def filter_goals(prev_result, config, *args, **kwargs):
 
 def move_to_goal(prev_result, config, status_cb, goal_idx=None):
     goals = prev_result
+    if len(goals) == 0:
+        raise RuntimeError('No valid goals detected for autonomous motion')
     # collect async loggers
     # AdaHandler handles logging its own data in-thread
     # but loggers that just need to start and stop are passed as separate objects
@@ -222,3 +224,5 @@ def run_assistance_on_goals(prev_result, config, status_cb):
 def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position):
     return make_goal_builder(get_robot_pos_fn
         ).then(run_assistance_on_goals)
+
+
