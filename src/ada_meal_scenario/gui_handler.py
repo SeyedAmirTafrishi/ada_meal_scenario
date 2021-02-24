@@ -96,7 +96,9 @@ class GuiHandler(object):
     def add_config_frame(self, fn, name, button_sticky='new'):
         if self.trial is not None:
             raise RuntimeError('Cannot add config frame while trial is running!')
-        frame = fn(self.config_frame, self._initial_config, self._start_button_callback)
+        cfg = self._initial_config.copy()
+        cfg.update(self._default_config)
+        frame = fn(self.config_frame, cfg, self._start_button_callback)
         self.config_frames.append(frame)
         self.set_waiting_for_trial()
 
