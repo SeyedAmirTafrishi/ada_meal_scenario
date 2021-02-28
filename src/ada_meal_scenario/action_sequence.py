@@ -184,12 +184,20 @@ class NoOp(Future):
         return fn
 
 class Wait(Future):
-    def __init__(self, status_cb=None, *args, **kwargs):
-        if status_cb:
-            status_cb("Waiting for cancel")
+    def __init__(self, timeout=None, *args, **kwargs):
         super(Wait, self).__init__()
+        if timeout is not None:
+            self._handle = rospy.Timer(rospy.Duration.from_sec(timeout), self._timeout, oneshot=True)
     def cancel(self):
+        self._handle.shutdown()
         self.set_cancelled()
+    def _timeout(self, e):
+        self.set_result(None)
+    @classmethod
+    def factory(cls, timeout):
+        def fn(*args, **kwargs):
+            return cls(timeout, *args, **kwargs)
+        return fn
 
 
 def make_async_mapper(fn):
