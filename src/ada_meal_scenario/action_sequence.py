@@ -208,7 +208,7 @@ def make_async_mapper(fn):
 
         def make_func_runner(idx, inpt):
             def run(*args, **kwargs):
-                future = defer_threaded(fn, inpt)
+                future = defer_threaded(fn, args=(inpt,)+args, kwargs=kwargs)
                 def update_result(fut):
                     res_obj[idx] = fut.result(0)
                 future.add_done_callback(update_result)

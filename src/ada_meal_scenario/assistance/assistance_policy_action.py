@@ -110,12 +110,12 @@ def set_ghost_to_ik(name, robot, ik):
     # ghost_robot.SetActiveDOFValues(ik)
 
 
-def check_ik_for_goal(robot, goal):
+def check_ik_for_goal(goal, config, status_cb):
     logger.info('checking IK for {}'.format(goal.name))
     for tf in goal.target_poses:
-        ok, ik = check_ik_for_pose(robot, tf)
+        ok, ik = check_ik_for_pose(config['robot'], tf)
         if ok:
-            set_ghost_to_ik('ghost_{}'.format(goal.name), robot, ik)
+            set_ghost_to_ik('ghost_{}'.format(goal.name), config['robot'], ik)
             return True, goal
     return False, goal
 
@@ -126,7 +126,7 @@ def make_goal_builder(get_robot_pos_fn=get_prestab_position):
         """
         prev_result: iterable of KinBody-s representing goal objects
         """
-        status_cb('Preparing assistance')
+        status_cb('Processing goals')
         env = config['env']
         robot = config['robot']
         goal_bodies = prev_result
@@ -140,18 +140,12 @@ def make_goal_builder(get_robot_pos_fn=get_prestab_position):
             goal.SetTransform(tf)
 
         goals = [
-            (robot, Goal(goal.GetName(), goal.GetTransform(), [get_robot_pos_fn(env, robot, goal)]))
+            Goal(goal.GetName(), goal.GetTransform(), [get_robot_pos_fn(env, robot, goal)])
             for goal in goal_bodies
         ]
-
         logger.debug('got {} goals'.format(len(goals)))
         return goals
-        
-    return ActionSequenceFactory(
-            ).then(build_goals
-            ).then(make_async_mapper(check_ik_for_goal)
-            ).then(filter_goals
-            )
+    return build_goals
 
 @futurize(blocking=True)
 def filter_goals(prev_result, config, *args, **kwargs):
@@ -221,8 +215,12 @@ def run_assistance_on_goals(prev_result, config, status_cb):
             AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
             get_loggers(goals, config))
 
-def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position):
-    return make_goal_builder(get_robot_pos_fn
-        ).then(run_assistance_on_goals)
-
+def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position, check_ik=True):
+    actions = ActionSequenceFactory(
+        ).then(make_goal_builder(get_robot_pos_fn))
+    if check_ik:
+        actions.then(make_async_mapper(check_ik_for_goal)
+        ).then(filter_goals)
+    actions.then(run_assistance_on_goals)
+    return actions
 
