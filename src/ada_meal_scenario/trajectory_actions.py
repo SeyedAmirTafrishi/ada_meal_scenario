@@ -2,7 +2,7 @@
 from catkin.find_in_workspaces import find_in_workspaces
 import logging, numpy, prpy, os
 import prpy.rave, prpy.util
-from action_sequence import ActionSequenceFactory, defer, futurize, NoOp
+from action_sequence import ActionSequenceFactory, defer, futurize, NoOp, Wait
 from prpy.planning.base import PlanningError
 from functools import partial
 
@@ -58,6 +58,7 @@ def make_run_saved_trajectory_action(traj_file):
     # need to load the trajectory in the loop bc we need access to the environment
     # so do it once and cache it
     def load_traj(prev_result, config, status_cb):
+        logger.info("Loading trajectory {}".format(traj_file))
         if traj_file not in _TRAJ_CACHE:
             _TRAJ_CACHE[traj_file] = prpy.rave.load_trajectory(config['env'], traj_file)
         return NoOp()
@@ -66,8 +67,10 @@ def make_run_saved_trajectory_action(traj_file):
         traj = _TRAJ_CACHE[traj_file]
         robot = config['robot']
         if prpy.util.IsAtTrajectoryStart(robot, traj):
+            logger.info("Already at trajectory start")
             return NoOp()
         else:
+            logger.info("Planning to trajectory start")
             cspec = traj.GetConfigurationSpecification()
             first_wpt = traj.GetWaypoint(0)
             first_config = cspec.ExtractJointValues(
@@ -79,6 +82,7 @@ def make_run_saved_trajectory_action(traj_file):
         traj = _TRAJ_CACHE[traj_file]
         robot = config['robot']
         try:
+            logger.info("Running trajectory")
             return execute_trajectory(robot, traj)
         except PlanningError as e:
             logger.error(
@@ -91,6 +95,8 @@ def make_run_saved_trajectory_action(traj_file):
 
     return ActionSequenceFactory(
         ).then(load_traj
+        ).then(Wait.factory(0.3)  # give extra time for motion to stop so we don't fail IsAtTrajStart
+                                  # really we want a WaitForNoMotion but call that a TODO
         ).then(move_to_traj_start
         ).then(execute_stored_traj)
 
