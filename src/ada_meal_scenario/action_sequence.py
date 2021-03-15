@@ -95,8 +95,12 @@ class LoggedActionSequence(ActionSequence):
 
 
 class ActionSequenceFactory:
-    def __init__(self, action_factories=[]):
+    def __init__(self, action_factories=[], log=False):
         self.action_factories = action_factories[:]
+        if log:
+            self.cls = LoggedActionSequence
+        else:
+            self.cls = ActionSequence
 
     def __iter__(self):
         # enable easier chaining
@@ -112,7 +116,7 @@ class ActionSequenceFactory:
     
     def __call__(self, *args, **kwargs):
         try:
-            return ActionSequence(self.action_factories, *args, **kwargs)
+            return self.cls(self.action_factories, *args, **kwargs)
         except Exception as e:
             import traceback; traceback.print_exc()
             self.set_exception(e)
