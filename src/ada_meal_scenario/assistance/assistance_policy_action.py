@@ -12,7 +12,7 @@ from ada_teleoperation.DataRecordingUtils import TrajectoryData
 from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config, is_autonomous
 from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
-from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action, create_move_hand_action
+from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action, create_move_hand_action, create_trajectory_action
 
 project_name = 'ada_meal_scenario'
 logger = logging.getLogger(project_name)
@@ -158,6 +158,18 @@ def filter_goals(prev_result, config, *args, **kwargs):
             config['env'].Remove(config['env'].GetKinBody(goal.name))
     return ok_goals
 
+# TODO: mege with the one in the run_assistance
+class DisableCollision:
+    def __init__(self, objs):
+        self._objs = objs
+    def __enter__(self):
+        self._initial = [ obj.IsEnabled() for obj in self._objs ]
+        for obj in self._objs:
+            obj.Enable(False)
+    def __exit__(self, *args):
+        for obj, init in zip(self._objs, self._initial):
+            obj.Enable(init)
+
 def move_to_goal(prev_result, config, status_cb, goal_idx=None):
     goals = prev_result
     if len(goals) == 0:
@@ -171,6 +183,12 @@ def move_to_goal(prev_result, config, status_cb, goal_idx=None):
         goal_idx = np.random.randint(len(goals))
     true_goal = goals[goal_idx]
     status_cb('Autonomously going to goal {} ({})'.format(goal_idx, true_goal.name))
+
+    env = config['env']
+    robot = config['robot']
+    with DisableCollision([env.GetKinBody(true_goal.name)]):
+        path = robot.PlanToEndEffectorPose(true_goal.target_poses[0])
+        traj = robot.PostProcessPath(path)
 
     # TODO: make the normal one log like this too
     @futurize(blocking=True)
@@ -191,7 +209,7 @@ def move_to_goal(prev_result, config, status_cb, goal_idx=None):
 
     return ActionSequenceFactory(
         ).then(start_logging
-        ).then(create_move_robot_to_end_effector_pose_action(true_goal.target_poses[0])
+        ).then(create_trajectory_action(traj)
         ).then(stop_logging
         ).then(return_goals
         ).run(prev_result, config, status_cb)
