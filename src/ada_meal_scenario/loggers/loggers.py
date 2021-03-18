@@ -1,5 +1,6 @@
 
 import copy
+import logging
 import os
 try:
     import Tkinter as tk
@@ -18,7 +19,6 @@ try:
 except ImportError:
     remote_video_recorder = None
 
-from ada_teleoperation import DataRecordingUtils
 from ada_meal_scenario.loggers.goal_transform_publisher import GoalTransformPublisherConfigFrame, get_goal_transform_publisher
 from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
 from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
@@ -26,6 +26,39 @@ from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFr
 from ada_meal_scenario.loggers.zed_node_recorder import ZedNodeRecorderConfigFrame, get_zed_node_recorder
 
 LOGGING_CONFIG_NAME = 'logging'
+
+logger = logging.getLogger('ada_meal_scenario')
+
+
+def check_dir(base_dir, uid):
+    return not os.path.isdir(get_filename(base_dir, uid))
+def get_filename(base_dir, uid):
+  return os.path.join(base_dir, 'user_') + str(uid).zfill(3)
+
+def get_next_available_user_ind(base_dir, lo=-1, hi=float('inf')):
+    # this is waaaaaay too fancy and bug-prone
+    # but i wanted to implement binary search
+    # and you can't stop me
+    assert hi > lo
+    if lo < 0:
+        if check_dir(base_dir, 0):
+            return 0
+        else:
+            return get_next_available_user_ind(base_dir, lo=0, hi=hi)
+    elif hi == float('inf'):
+        q = lo+1
+        while not check_dir(base_dir, q):
+            q = q*2
+        return get_next_available_user_ind(base_dir, lo=lo, hi=q)
+    elif hi == lo+1:
+        return hi
+    else:
+        q = int( (lo + hi) / 2)
+        if check_dir(base_dir, q):
+            return get_next_available_user_ind(base_dir, lo=lo, hi=q)
+        else:
+            return get_next_available_user_ind(base_dir, lo=q, hi=hi)
+
 
 class LoggingOptions(tk.Frame, object):
     __USER_ID_INVALID_BG__ = "#cc0000"
@@ -106,10 +139,10 @@ class LoggingOptions(tk.Frame, object):
         data_root = tkfile.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
         if data_root is not None:
             self.data_root_var.set(data_root)
+            self._update_user_id()
 
     def _get_data_dir(self):
-        return DataRecordingUtils.get_filename(
-            self.data_root_var.get(), DataRecordingUtils.user_folder_base_default, self.user_id_var.get(), '')
+        return get_filename(self.data_root_var.get(), self.user_id_var.get())
     
     def _validate_user_id(self, *_):
         data_dir = self._get_data_dir()
@@ -127,11 +160,8 @@ class LoggingOptions(tk.Frame, object):
 
     def _update_user_id(self):
         # when we've finished a trial, we need to advance the user id
-        next_user_id, _ = DataRecordingUtils.get_next_available_user_ind(
-            self.data_root_var.get(), make_dir=False)
+        next_user_id = get_next_available_user_ind(self.data_root_var.get())
         self.user_id_var.set(next_user_id)
-        self._user_id_dirty = False
-
     def get_config(self):
         data_dir = self._get_data_dir()
         if os.path.exists(data_dir):
