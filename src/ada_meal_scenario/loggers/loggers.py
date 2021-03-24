@@ -24,6 +24,7 @@ from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, g
 from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
 from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame, get_zed_remote_recorder
 from ada_meal_scenario.loggers.zed_node_recorder import ZedNodeRecorderConfigFrame, get_zed_node_recorder
+from ada_meal_scenario.loggers.notes_recorder import NotesLoggerFrame
 
 LOGGING_CONFIG_NAME = 'logging'
 
@@ -132,7 +133,10 @@ class LoggingOptions(tk.Frame, object):
             remote_video_recorder_config = remote_video_recorder.logger_frame.RemoteRecorderConfigFrame(self.right_column, initial_config)
             remote_video_recorder_config.grid(row=4, column=0, padx=1, pady=1, sticky='nesw')
             self.loggers.append(remote_video_recorder_config)
-        
+ 
+        notes_frame = NotesLoggerFrame(self.right_column, initial_config)
+        notes_frame.grid(row=5, column=0, sticky='nsew')
+        self.loggers.append(notes_frame)
 
 
     def _set_data_root(self):
