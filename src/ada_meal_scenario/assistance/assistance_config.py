@@ -53,14 +53,26 @@ class AssistanceConfigFrame(tk.Frame, object):
                                   pady=2,
                                   sticky="new")
         
-        self._gamma_label = tk.Label(self, text="g (u_f = 2*g*a + 2*(1-g)*u):")
+        self._tf_frame = tk.Frame(self)
+        self._tf_frame.grid(row=1, column=0, sticky="nsew")
+        self._tf_label = tk.Label(self._tf_frame, text="u_f = 2*g*r*a + 2*(1-g)*u)")
+        self._tf_label.grid(row=0, column=0, columnspan=2, sticky="nw")
+        self._gamma_label = tk.Label(self._tf_frame, text='g:')
         self._gamma_val = tk.StringVar()
         self._gamma_val.set(str(initial_config.get("g", 0.5)))
-        self._gamma_entry = ttk.Combobox(self, textvariable=self._gamma_val, values=["0.5", "0.33", "0.67"])
+        self._gamma_entry = ttk.Combobox(self._tf_frame, textvariable=self._gamma_val, values=["0.5", "0.33", "0.67"])
         self.register(_validate_float)
         self._gamma_entry.configure(validate='all', validatecommand=(_validate_float, "%P"))
         self._gamma_label.grid(row=1, column=0, sticky="nw")
-        self._gamma_entry.grid(row=2, column=0, sticky="new")
+        self._gamma_entry.grid(row=1, column=1, sticky="new")
+
+        self._r_label = tk.Label(self._tf_frame, text='r:')
+        self._r_val = tk.StringVar()
+        self._r_val.set(str(initial_config.get("r", 1.)))
+        self._r_entry = ttk.Combobox(self._tf_frame, textvariable=self._r_val, values=[])
+        self._r_entry.configure(validate='all', validatecommand=(_validate_float, "%P"))
+        self._r_label.grid(row=2, column=0, sticky="nw")
+        self._r_entry.grid(row=2, column=1, sticky="new")
 
         self.input_profile_selector = OptionSelector(
             self,
@@ -87,6 +99,7 @@ class AssistanceConfigFrame(tk.Frame, object):
         cur_method = self.method_selector.get_value()
         shared_auto = cur_method in [ _SHARED_AUTO, _SHARED_AUTO_FIXED ]
         self._gamma_entry.configure(state=tk.NORMAL if shared_auto else tk.DISABLED)
+        self._r_entry.configure(state=tk.NORMAL if shared_auto else tk.DISABLED)
 
     def get_config(self):
         pred_config = dict()
@@ -95,6 +108,7 @@ class AssistanceConfigFrame(tk.Frame, object):
         return { ASSISTANCE_CONFIG_NAME: {
             'method': self.method_selector.get_value(),
             'g': float(self._gamma_val.get()),
+            'r': float(self._r_val.get()),
             'prediction': pred_config,
             'input_profile': self.input_profile_selector.get_value(),
         } }
@@ -102,6 +116,7 @@ class AssistanceConfigFrame(tk.Frame, object):
     def set_state(self, state):
         self.method_selector.set_state(state)
         self._gamma_entry.configure(state=state)
+        self._r_entry.configure(state=state)
         self._update_method()  # update the _gamma state to match
         self.input_profile_selector.set_state(state)
         self._pred_policy_config.set_state(state)
@@ -110,6 +125,7 @@ class AssistanceConfigFrame(tk.Frame, object):
 def get_ada_handler_config(config):
     config = config.get(ASSISTANCE_CONFIG_NAME, {})
     g = config.get('g', 0.5)
+    r = config.get('r', 1.)
 
     return {
         'input_profile_name': config.get('input_profile', ''),
@@ -117,7 +133,7 @@ def get_ada_handler_config(config):
         'blend_only': config.get('method', '') == _BLEND,
         'pick_goal': config.get('method', '') == _FULL_AUTO,
         'fix_magnitude_user_command': config.get('method', '') == _SHARED_AUTO_FIXED,
-        'transition_function': lambda a,u: 2*g*a + 2*(1-g)*u,
+        'transition_function': lambda a,u: 2*g*r*a + 2*(1-g)*u,
         'prediction_config': config.get('prediction', {})
     }
 
