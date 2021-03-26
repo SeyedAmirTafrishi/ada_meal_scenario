@@ -85,8 +85,8 @@ class LoggingOptions(tk.Frame, object):
         # choose top dir for logging
         self.data_root_var = tk.StringVar(value=base_dir)
         self.data_root_label = tk.Label(
-            self.logging_frame, textvariable=self.data_root_var, wraplength=300, justify=tk.LEFT)
-        self.data_root_label.grid(row=0, column=0, columnspan=2, sticky='nw')
+            self.logging_frame, textvariable=self.data_root_var, wraplength=300, anchor='w')
+        self.data_root_label.grid(row=0, column=0, columnspan=2, sticky='nwe')
         self.data_root_label.bind('<Configure>', lambda e: e.widget.configure(wraplength=e.widget.winfo_width()))
         self.data_root_button = tk.Button(self.logging_frame, text='Select data directory', command=self._set_data_root)
         self.data_root_button.grid(row=1, column=0, columnspan=2, sticky='nw')
