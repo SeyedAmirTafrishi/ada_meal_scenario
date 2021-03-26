@@ -212,32 +212,32 @@ def get_loggers(goals, config):
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
 
-        loggers = []
+    loggers = []
 
-        zed_logger = get_zed_remote_recorder(log_dir, config)
-        if zed_logger is not None:
-            loggers.append(zed_logger)
+    zed_logger = get_zed_remote_recorder(log_dir, config)
+    if zed_logger is not None:
+        loggers.append(zed_logger)
 
-        pupil_logger = get_pupil_recorder(log_dir, config)
-        if pupil_logger is not None:
-            loggers.append(pupil_logger)
+    pupil_logger = get_pupil_recorder(log_dir, config)
+    if pupil_logger is not None:
+        loggers.append(pupil_logger)
 
-        rosbag_logger = get_rosbag_recorder(log_dir, config)
-        if rosbag_logger is not None:
-            loggers.append(rosbag_logger)
+    rosbag_logger = get_rosbag_recorder(log_dir, config)
+    if rosbag_logger is not None:
+        loggers.append(rosbag_logger)
 
-        zed_node_logger = get_zed_node_recorder(log_dir, config)
-        if zed_node_logger is not None:
-            loggers.append(zed_node_logger)
+    zed_node_logger = get_zed_node_recorder(log_dir, config)
+    if zed_node_logger is not None:
+        loggers.append(zed_node_logger)
 
-        goal_transform_publisher = get_goal_transform_publisher(goals)
-        if goal_transform_publisher is not None:
-            loggers.append(goal_transform_publisher)
+    goal_transform_publisher = get_goal_transform_publisher(goals)
+    if goal_transform_publisher is not None:
+        loggers.append(goal_transform_publisher)
 
-        if remote_video_recorder is not None:
-            remote_video_logger = remote_video_recorder.logger_frame.get_remote_video_recorder(log_dir, config)
-            if remote_video_logger is not None:
-                loggers.append(remote_video_logger)
+    if remote_video_recorder is not None:
+        remote_video_logger = remote_video_recorder.logger_frame.get_remote_video_recorder(log_dir, config)
+        if remote_video_logger is not None:
+            loggers.append(remote_video_logger)
     
     return loggers
 
@@ -262,5 +262,9 @@ def log_trial_init(goals, config):
         yaml.safe_dump(new_config, f)
 
     
-
+def disable_logging(cfg):
+    config = cfg.copy()
+    if LOGGING_CONFIG_NAME in config:
+        config[LOGGING_CONFIG_NAME]['data_dir'] = None
+    return config
 

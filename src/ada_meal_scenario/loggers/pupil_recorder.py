@@ -86,7 +86,7 @@ class PupilRecorderConfigFrame(tk.LabelFrame, object):
         # self.endpoint_check_button.configure(state=state)
 
 def get_pupil_recorder(log_dir, config):
-    if PUPIL_CONFIG_NAME in config and config[PUPIL_CONFIG_NAME]['enabled']:
+    if log_dir is not None and PUPIL_CONFIG_NAME in config and config[PUPIL_CONFIG_NAME]['enabled']:
         return ConfigurablePupilCapture(config[PUPIL_CONFIG_NAME]['endpoint'])
     else:
         return None

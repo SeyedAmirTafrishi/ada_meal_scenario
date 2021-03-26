@@ -88,7 +88,7 @@ class ZedNodeRecorderConfigFrame(tk.LabelFrame, object):
             self.topic_entry.configure(state=state)
                 
 def get_zed_node_recorder(log_dir, config):
-    if ZED_NODE_RECORDER_CONFIG_NAME in config and config[ZED_NODE_RECORDER_CONFIG_NAME]['enabled']:
+    if log_dir is not None and ZED_NODE_RECORDER_CONFIG_NAME in config and config[ZED_NODE_RECORDER_CONFIG_NAME]['enabled']:
         return ZedNodeRecorder(log_dir, config[ZED_NODE_RECORDER_CONFIG_NAME]['topic'])
     else:
         return None

@@ -198,7 +198,10 @@ class GuiHandler(object):
         # get the config
         try:
             cfg = self.get_config()
-            cfg.update(config_adjust)
+            try:
+                cfg.update(config_adjust)
+            except TypeError:
+                cfg = config_adjust(cfg)
         except ValueError as e:
             import traceback; traceback.print_exc()
             tkMessageBox.showerror(message=str(e))

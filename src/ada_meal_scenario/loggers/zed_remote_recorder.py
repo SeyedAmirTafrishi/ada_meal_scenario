@@ -81,7 +81,7 @@ class RemoteRecorderConfigFrame(tk.LabelFrame, object):
             self.topic_entry.configure(state=state)
                 
 def get_zed_remote_recorder(log_dir, config):
-    if ZED_RECORDER_CONFIG_NAME in config and config[ZED_RECORDER_CONFIG_NAME]['enabled']:
+    if log_dir is not None and ZED_RECORDER_CONFIG_NAME in config and config[ZED_RECORDER_CONFIG_NAME]['enabled']:
         return RemoteRecorder(log_dir, config[ZED_RECORDER_CONFIG_NAME]['topic'])
     else:
         return None

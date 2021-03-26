@@ -144,7 +144,7 @@ class RosbagRecorderConfigFrame(tk.LabelFrame, object):
 
 
 def get_rosbag_recorder(log_dir, config):
-    if ROSBAG_RECORDER_CONFIG_NAME in config and config[ROSBAG_RECORDER_CONFIG_NAME]['enabled']:
+    if log_dir is not None and ROSBAG_RECORDER_CONFIG_NAME in config and config[ROSBAG_RECORDER_CONFIG_NAME]['enabled']:
         return RosbagRecorder(log_dir, config[ROSBAG_RECORDER_CONFIG_NAME]['topics'])
     else:
         return None
