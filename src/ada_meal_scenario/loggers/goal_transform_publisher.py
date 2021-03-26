@@ -51,7 +51,7 @@ def build_tf_msg(obj):
     )
 
 class GoalTransformPublisher:
-    RATE = rospy.Duration(1.)
+    RATE = rospy.Duration(0.1)
     def __init__(self, objs):
         self._tf_pub = tf2_ros.TransformBroadcaster()
         self._msgs = [ build_tf_msg(o) for o in objs ]
