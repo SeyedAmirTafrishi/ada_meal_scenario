@@ -219,7 +219,7 @@ def run_direct_teleop(prev_result, config, status_cb):
     goals = prev_result
     loggers = get_loggers(goals, config)
     cfg = AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config))
-    cfg = cfg._replace(direct_teleop_only=True)
+    cfg = cfg._replace(direct_teleop_only=True, pick_goal=False)
     return AdaHandler(config['env'], config['robot'], cfg, loggers)
 
 def run_assistance_on_goals(prev_result, config, status_cb):
