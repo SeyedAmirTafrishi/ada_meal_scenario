@@ -13,18 +13,7 @@ except ImportError:  # python3
 import yaml
 
 import rospkg
-
-try:
-    import remote_video_recorder.logger_frame
-except ImportError:
-    remote_video_recorder = None
-
-from ada_meal_scenario.loggers.goal_transform_publisher import GoalTransformPublisherConfigFrame, get_goal_transform_publisher
-from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
-from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
-from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame, get_zed_remote_recorder
-from ada_meal_scenario.loggers.zed_node_recorder import ZedNodeRecorderConfigFrame, get_zed_node_recorder
-from ada_meal_scenario.loggers.notes_recorder import NotesLoggerFrame
+from ada_meal_scenario.loggers.goal_transform_publisher import get_goal_transform_publisher
 
 LOGGING_CONFIG_NAME = 'logging'
 
@@ -66,6 +55,7 @@ class LoggingOptions(tk.Frame, object):
     def __init__(self, parent, initial_config, run_fn):
         super(LoggingOptions, self).__init__(parent)
         initial_config = initial_config.get(LOGGING_CONFIG_NAME, {})
+        self._initial_config = initial_config
 
         self.left_column = tk.Frame(self)
         self.left_column.grid(row=0, column=0, sticky='nesw')
@@ -111,33 +101,38 @@ class LoggingOptions(tk.Frame, object):
         self.logging_frame.columnconfigure(1, weight=1)
 
         self.logging_frame.grid(row=0, column=0, padx=1, pady=1, sticky='nesw')
+        self.loggers = []
+        self.added_logger_names = []
 
+    def add_logger_frame(self, frame_fn, logger_fn=None, side='left', name=None, **kwargs):
+        if frame_fn is not None:
+            if side == 'left':
+                parent = self.left_column
+            elif side == 'right':
+                parent = self.right_column
+            else:
+                parent = self.logging_frame
+            frame = frame_fn(parent, self._initial_config)
+            self.loggers.append(frame)
 
-        # additional logging options
-        pupil_config = PupilRecorderConfigFrame(self.left_column, initial_config)
-        pupil_config.grid(row=1, column=0, padx=1, pady=1, sticky='nesw')
-        
-        zed_node_config = ZedNodeRecorderConfigFrame(self.left_column, initial_config)
-        zed_node_config.grid(row=2, column=0, padx=1, pady=1, sticky='nesw')
+            grid_args = dict(column=0, padx=1, pady=1, sticky='nesw')
+            grid_args.update(kwargs)
+            frame.grid(**grid_args)
+        else:
+            frame = None
 
-        goal_transform_publisher_config = GoalTransformPublisherConfigFrame(self.left_column, initial_config)
-        goal_transform_publisher_config.grid(row=3, column=0, padx=1, pady=1, sticky='nesw')
+        if name is None:
+            if frame_fn:
+                name = frame_fn.__name__
+            elif logger_fn:
+                name = logger_fn.__name__
+            else:
+                raise ValueError("one of frame_fn, logger_fn must not be None")
+        if logger_fn:
+            _register_logger(name, logger_fn)
+            self.added_logger_names.append(name)
 
-        rosbag_config = RosbagRecorderConfigFrame(self.right_column, initial_config)
-        rosbag_config.grid(row=0, column=0, padx=1, pady=1, sticky='nesw')
-        self.right_column.rowconfigure(0, weight=1)
-
-        self.loggers = [pupil_config, zed_node_config, rosbag_config, goal_transform_publisher_config]
-        
-        if remote_video_recorder is not None:
-            remote_video_recorder_config = remote_video_recorder.logger_frame.RemoteRecorderConfigFrame(self.right_column, initial_config)
-            remote_video_recorder_config.grid(row=4, column=0, padx=1, pady=1, sticky='nesw')
-            self.loggers.append(remote_video_recorder_config)
- 
-        notes_frame = NotesLoggerFrame(self.right_column, initial_config)
-        notes_frame.grid(row=5, column=0, sticky='nsew')
-        self.loggers.append(notes_frame)
-
+        return frame
 
     def _set_data_root(self):
         data_root = tkfile.askdirectory(initialdir=self.data_root_var.get(), title='Choose root directory for logging')
@@ -166,6 +161,7 @@ class LoggingOptions(tk.Frame, object):
         # when we've finished a trial, we need to advance the user id
         next_user_id = get_next_available_user_ind(self.data_root_var.get())
         self.user_id_var.set(next_user_id)
+
     def get_config(self):
         data_dir = self._get_data_dir()
         if os.path.exists(data_dir):
@@ -173,7 +169,8 @@ class LoggingOptions(tk.Frame, object):
         base_res = {
             'base_dir': self.data_root_var.get(),
             'data_dir': data_dir,
-            'auto': bool(self.user_id_auto_var.get())
+            'auto': bool(self.user_id_auto_var.get()),
+            'added_loggers': self.added_logger_names
         }
         for logger in self.loggers:
             base_res.update(logger.get_config())
@@ -195,9 +192,35 @@ class LoggingOptions(tk.Frame, object):
         if self.user_id_auto_var.get():
             self._update_user_id()
 
+def build_logger_frame(*args, **kwargs):
+    from ada_meal_scenario.loggers.goal_transform_publisher import GoalTransformPublisherConfigFrame
+    from ada_meal_scenario.loggers.pupil_recorder import PupilRecorderConfigFrame, get_pupil_recorder
+    from ada_meal_scenario.loggers.rosbag_recorder import RosbagRecorderConfigFrame, get_rosbag_recorder
+    from ada_meal_scenario.loggers.zed_remote_recorder import RemoteRecorderConfigFrame, get_zed_remote_recorder
+    from ada_meal_scenario.loggers.zed_node_recorder import ZedNodeRecorderConfigFrame, get_zed_node_recorder
+    from ada_meal_scenario.loggers.notes_recorder import NotesLoggerFrame
+
+    logger_frame = LoggingOptions(*args, **kwargs)
+    logger_frame.add_logger_frame(PupilRecorderConfigFrame, get_pupil_recorder, side='left')
+    logger_frame.add_logger_frame(RemoteRecorderConfigFrame, get_zed_remote_recorder, side='left')
+    logger_frame.add_logger_frame(GoalTransformPublisherConfigFrame, side='left')  # TODO: fix signature
+    logger_frame.add_logger_frame(RosbagRecorderConfigFrame, get_rosbag_recorder, side='right')
+    logger_frame.add_logger_frame(ZedNodeRecorderConfigFrame, get_zed_node_recorder, side='left')
+    logger_frame.add_logger_frame(NotesLoggerFrame, side='left')
+
+    return logger_frame
+
 
 def get_log_dir(config):
     return config.get(LOGGING_CONFIG_NAME, {}).get('data_dir', None)
+
+_ALL_LOGGERS = {}
+# boo globals but what can you do, i'm not sure where else to put this data
+def _register_logger(name, new_logger):
+    if name not in _ALL_LOGGERS:
+        _ALL_LOGGERS[name] = new_logger
+    else:
+        logger.warn('Trying to re-register logger: {}'.format(name))
 
 def get_loggers(goals, config):
     if LOGGING_CONFIG_NAME not in config:
@@ -214,30 +237,16 @@ def get_loggers(goals, config):
 
     loggers = []
 
-    zed_logger = get_zed_remote_recorder(log_dir, config)
-    if zed_logger is not None:
-        loggers.append(zed_logger)
+    for logger_name in config['added_loggers']:
+        logger.info("Initializing logger {}".format(logger_name))
+        log_obj = _ALL_LOGGERS[logger_name](log_dir, config)
+        if log_obj is not None:
+            loggers.append(log_obj)
 
-    pupil_logger = get_pupil_recorder(log_dir, config)
-    if pupil_logger is not None:
-        loggers.append(pupil_logger)
-
-    rosbag_logger = get_rosbag_recorder(log_dir, config)
-    if rosbag_logger is not None:
-        loggers.append(rosbag_logger)
-
-    zed_node_logger = get_zed_node_recorder(log_dir, config)
-    if zed_node_logger is not None:
-        loggers.append(zed_node_logger)
-
+    # TODO: match the signature so we can register this like the others
     goal_transform_publisher = get_goal_transform_publisher(goals)
     if goal_transform_publisher is not None:
         loggers.append(goal_transform_publisher)
-
-    if remote_video_recorder is not None:
-        remote_video_logger = remote_video_recorder.logger_frame.get_remote_video_recorder(log_dir, config)
-        if remote_video_logger is not None:
-            loggers.append(remote_video_logger)
     
     return loggers
 
