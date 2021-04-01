@@ -7,16 +7,17 @@ import tkFont, tkMessageBox
 from functools import partial
 import traceback
 import yaml
-from collections import deque
+from collections import deque, OrderedDict
 import rospkg
 
 from adapy.futures import TimeoutError, CancelledError
 from ada_meal_scenario.assistance.assistance_config import AssistanceConfigFrame
-from ada_meal_scenario.loggers.loggers import LoggingOptions
-
+from ada_meal_scenario.loggers.loggers import build_logger_frame
 
 
 default_bg_color = None
+LOGGER_FRAME_NAME = "Logging"
+ASSISTANCE_FRAME_NAME = "Assistance"
 
 
 def _load_initial_config(fn):
@@ -58,7 +59,7 @@ class GuiHandler(object):
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(1, weight=1)
         
-        self.config_frames = []
+        self.config_frames = OrderedDict()
         self.config_selector_buttons = []
         self.active_frame = None
 
@@ -99,7 +100,7 @@ class GuiHandler(object):
         cfg = self._initial_config.copy()
         cfg.update(self._default_config)
         frame = fn(self.config_frame, cfg, self._start_button_callback)
-        self.config_frames.append(frame)
+        self.config_frames[name] = frame
         self.set_waiting_for_trial()
 
         select_button = Tkinter.Button(self.config_button_frame, text=name, command=lambda: self._highlight_config(frame))
@@ -111,18 +112,21 @@ class GuiHandler(object):
 
         return frame
 
+    def get_config_frame(self, name):
+        return self.config_frames[name]
+
     def _highlight_config(self, frame):
         if self.active_frame is frame:
             return
         if self.active_frame is not None:
             # it's technically faster to store the index separately than to search for it each time
             # but like, len(active_frames) is small so it really doesn't matter
-            prev_btn_idx = self.config_frames.index(self.active_frame)
+            prev_btn_idx = self.config_frames.values().index(self.active_frame)
             self.config_selector_buttons[prev_btn_idx].configure(relief=Tkinter.RAISED)
             self.active_frame.pack_forget()
         frame.pack(fill=Tkinter.BOTH, expand=True)
         self.active_frame = frame
-        btn_idx = self.config_frames.index(frame)
+        btn_idx = self.config_frames.values().index(frame)
         self.config_selector_buttons[btn_idx].configure(relief=Tkinter.SUNKEN)
 
     def run_once(self):
@@ -148,7 +152,7 @@ class GuiHandler(object):
         self._status_queue.append(status)
 
     def _set_config_frame_state(self, state):
-        for frame in self.config_frames:
+        for frame in self.config_frames.values():
             frame.set_state(state)
 
     def set_trial_running(self):
@@ -248,14 +252,14 @@ class GuiHandler(object):
             to_ret = self._default_config.copy()
         else:
             to_ret = dict()
-        for frame in self.config_frames:
+        for frame in self.config_frames.values():
             to_ret.update(frame.get_config())
         return to_ret
 
 def build_ada_meal_scenario_gui_handler(*args, **kwargs):
     gui_handler = GuiHandler(*args, **kwargs)
-    gui_handler.add_config_frame(AssistanceConfigFrame, "Assistance")
-    gui_handler.add_config_frame(LoggingOptions, "Logging")
+    gui_handler.add_config_frame(AssistanceConfigFrame, ASSISTANCE_FRAME_NAME)
+    gui_handler.add_config_frame(build_logger_frame, LOGGER_FRAME_NAME)
     
     return gui_handler
 
