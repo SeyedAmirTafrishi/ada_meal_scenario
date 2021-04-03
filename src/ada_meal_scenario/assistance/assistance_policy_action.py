@@ -9,7 +9,7 @@ import rospkg
 from ada_assistance_policy.AdaHandler import AdaHandler, AdaHandlerConfig
 from ada_assistance_policy.Goal import Goal
 from ada_teleoperation.DataRecordingUtils import TrajectoryData
-from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize, Wait
+from ada_meal_scenario.action_sequence import make_async_mapper, ActionSequenceFactory, futurize, Wait, NoOp
 from ada_meal_scenario.assistance.assistance_config import get_ada_handler_config, is_autonomous
 from ada_meal_scenario.loggers.loggers import get_loggers, log_trial_init, get_log_dir
 from ada_meal_scenario.trajectory_actions import create_move_robot_to_end_effector_pose_action, create_move_hand_action, create_trajectory_action
@@ -203,16 +203,12 @@ def move_to_goal(prev_result, config, status_cb, goal_idx=None):
         for logger in loggers:
             logger.stop()
 
-    @futurize(blocking=True)
-    def return_goals(*args, **kwargs):
-        return goals
-
     return ActionSequenceFactory(
         ).then(start_logging
         ).then(create_trajectory_action(traj)
         ).then(stop_logging
         ).then(Wait.factory(interrupt=True)
-        ).then(return_goals
+        ).then(NoOp.factory(result=goals)
         ).run(prev_result, config, status_cb)
 
 def run_direct_teleop(prev_result, config, status_cb):

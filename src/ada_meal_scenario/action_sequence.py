@@ -222,7 +222,7 @@ class Wait(Future):
         # flush any lingering stdin junk
         while select.select([sys.stdin], [], [], 0)[0]:
             sys.stdin.readline()
-        print('Press any key to continue...')
+        print('Press <enter> to continue...')
         while not self._finished.acquire(False):
             if select.select([sys.stdin], [], [], Wait.__SELECT_TIMEOUT)[0]:
                 self._finalize(caller=self._interrupt_thread)
