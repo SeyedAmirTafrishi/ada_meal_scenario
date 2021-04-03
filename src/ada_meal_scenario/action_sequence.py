@@ -4,6 +4,8 @@ from std_msgs.msg import String
 from collections import deque
 import rospy
 import functools
+import select
+import sys
 import threading
 import traceback
 
@@ -188,21 +190,50 @@ class NoOp(Future):
         return fn
 
 class Wait(Future):
-    def __init__(self, timeout=None, *args, **kwargs):
+    __SELECT_TIMEOUT = 0.1
+    def __init__(self, timeout=None, interrupt=False, *args, **kwargs):
         super(Wait, self).__init__()
+        self._timer = None
+        self._interrupt_thread = None
         if timeout is not None:
-            self._handle = rospy.Timer(rospy.Duration.from_sec(timeout), self._timeout, oneshot=True)
-    def cancel(self):
-        self._handle.shutdown()
-        self.set_cancelled()
-    def _timeout(self, e):
-        self.set_result(None)
-    @classmethod
-    def factory(cls, timeout):
-        def fn(*args, **kwargs):
-            return cls(timeout, *args, **kwargs)
-        return fn
+            self._timer = rospy.Timer(rospy.Duration.from_sec(timeout), self._timeout, oneshot=True)
+        if interrupt:
+            self._finished = threading.Lock()
+            self._finished.acquire()
+            self._interrupt_thread = threading.Thread(target=self._wait_for_interrupt)
+            self._interrupt_thread.start()
 
+    def _finalize(self, caller=None):
+        if self._timer and caller != self._timer:
+            self._timer.shutdown()
+        if self._interrupt_thread and caller != self._interrupt_thread:
+            self._finished.release()
+            self._interrupt_thread.join()
+
+    def cancel(self):
+        self._finalize()
+        self.set_cancelled()
+
+    def _timeout(self, e):
+        self._finalize(caller=self._timer)
+        self.set_result(None)
+
+    def _wait_for_interrupt(self):
+        # flush any lingering stdin junk
+        while select.select([sys.stdin], [], [], 0)[0]:
+            sys.stdin.readline()
+        print('Press any key to continue...')
+        while not self._finished.acquire(False):
+            if select.select([sys.stdin], [], [], Wait.__SELECT_TIMEOUT)[0]:
+                self._finalize(caller=self._interrupt_thread)
+                self.set_result(None)
+                return
+
+    @classmethod
+    def factory(cls, timeout=None, interrupt=False):
+        def fn(*args, **kwargs):
+            return cls(timeout, interrupt, *args, **kwargs)
+        return fn
 
 def make_async_mapper(fn):
     def map_async(prev_result, *args, **kwargs):
