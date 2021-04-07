@@ -252,8 +252,6 @@ def make_async_mapper(fn):
         
         action_factories = [ make_func_runner(idx, inpt) for idx, inpt in enumerate(inputs) ]
         # make sure we actually return the result
-        def return_result(*args, **kwargs):
-            return NoOp(res_obj)
-        action_factories += [return_result]
+        action_factories.then(NoOp.factory(res_obj))
         return ActionSequence(action_factories=action_factories)
     return map_async
