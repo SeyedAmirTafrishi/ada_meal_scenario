@@ -54,16 +54,17 @@ class RosbagRecorder:
 
     def stop(self):
         # first try to stop it via ros
-        try:
-            subprocess.check_call(['rosnode', 'kill', self._node_name])
-            self._proc.expect_exact(['Shutting down', pexpect.EOF, pexpect.TIMEOUT], timeout=0.5)
-        except subprocess.CalledProcessError as e:
-            rospy.logwarn('Failed to shut down rosbag process: %s', str(e))
+        if self._node_name is not None:
+            try:
+                subprocess.check_call(['rosnode', 'kill', self._node_name])
+                self._proc.expect_exact(['Shutting down', pexpect.EOF, pexpect.TIMEOUT], timeout=0.5)
+            except subprocess.CalledProcessError as e:
+                rospy.logwarn('Failed to shut down rosbag process: %s', str(e))
 
-        if self._proc.isalive():
-            rospy.logwarn('Failed to shut down rosbag process, terminating...')
-            if not self._proc.terminate(force=True):
-                rospy.logerr('Failed to terminate rosbag process!')
+            if self._proc.isalive():
+                rospy.logwarn('Failed to shut down rosbag process, terminating...')
+                if not self._proc.terminate(force=True):
+                    rospy.logerr('Failed to terminate rosbag process!')
 
         self._proc = None
         self._node_name = None
