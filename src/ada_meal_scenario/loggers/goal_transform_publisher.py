@@ -65,7 +65,7 @@ class GoalTransformPublisher:
     def _timer_callback(self, msg):
         # update all the stamps
         for m in self._msgs:
-            m.header.stamp = msg.current_expected + rospy.Duration(0.5)  # static, so forward-date
+            m.header.stamp = msg.current_expected + rospy.Duration(0.2)  # static, so forward-date
         self._tf_pub.sendTransform(self._msgs)
     
 def get_goal_transform_publisher(goals):
