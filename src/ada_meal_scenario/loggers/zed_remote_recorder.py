@@ -38,7 +38,7 @@ class RemoteRecorder:
                 if not res.ok:
                     logger.warn('Failed to start remote ZED recorder: {}'.format(res.message))
             except Exception as ex:
-                logger.warn('Exception when starting remote ZED recorder: {}'.format(str(e)))
+                logger.warn('Exception when starting remote ZED recorder: {}'.format(str(ex)))
 
     def stop(self):
         if self.service is not None:
@@ -47,7 +47,7 @@ class RemoteRecorder:
                 if not res.ok:
                     logger.warn('Failed to stop remote ZED recorder: {}'.format(res.message))
             except Exception as ex:
-                logger.warn('Exception when stopping remote ZED recorder: {}'.format(str(e)))
+                logger.warn('Exception when stopping remote ZED recorder: {}'.format(str(ex)))
 
 
 class RemoteRecorderConfigFrame(tk.LabelFrame, object):
