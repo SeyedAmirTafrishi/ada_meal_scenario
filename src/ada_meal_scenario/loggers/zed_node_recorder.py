@@ -55,7 +55,7 @@ class ZedNodeRecorder:
                 else:
                     logger.warn('Failed to stop recording on ZED node: {}'.format(res.info))
             except Exception as ex:
-                logger.warn('Exception when stopping recording on ZED node: {}'.format(str(e)))
+                logger.warn('Exception when stopping recording on ZED node: {}'.format(str(ex)))
 
 
 class ZedNodeRecorderConfigFrame(tk.LabelFrame, object):
