@@ -3,3 +3,5 @@
 trajectory_data/*
 *~
 config.yaml
+user_[0-9][0-9][0-9]/*
+**/user_[0-9][0-9][0-9]
