@@ -10,9 +10,11 @@ import time
 
 try:
     import Tkinter as tk
+    import ttk
     import tkMessageBox as tk_msg
 except ImportError:
     import tkinter as tk # python3
+    import tkinter.ttk as ttk
 
 from ada_meal_scenario.action_sequence import futurize
 
@@ -95,21 +97,30 @@ class RosbagRecorderConfigFrame(tk.LabelFrame, object):
         self.topics_listbox_frame.grid(row=2, column=0, columnspan=2, sticky=tk.N+tk.E+tk.S+tk.W)
 
         # initialize the topics
-        cur_topics = set(topic for topic, _ in rospy.get_published_topics())
+        # cur_topics = set(topic for topic, _ in rospy.get_published_topics())
         sel_topics = initial_config.get('topics', {})
-        cur_topics.update(sel_topics)
+        # cur_topics.update(sel_topics)
 
-        for topic in sorted(cur_topics):
+        # for topic in sorted(cur_topics):
+        #     self.topics_listbox.insert(tk.END, topic)
+        #     if topic in sel_topics:
+        #         self.topics_listbox.selection_set(tk.END)
+        for topic in sorted(sel_topics):
             self.topics_listbox.insert(tk.END, topic)
-            if topic in sel_topics:
-                self.topics_listbox.selection_set(tk.END)
+            self.topics_listbox.selection_set(tk.END)
 
+        # self.topics_add_var = tk.StringVar()
+        # self.topics_add_entry = tk.Entry(self, textvariable=self.topics_add_var)
+        # self.topics_add_entry.bind("<Return>", self._add_topic)
+        # self.topics_add_button = tk.Button(self, text='Add', command=self._add_topic)
+        # self.topics_add_entry.grid(row=3, column=0, sticky=tk.N+tk.E+tk.W)
+        # self.topics_add_button.grid(row=3, column=1, sticky=tk.W)
         self.topics_add_var = tk.StringVar()
-        self.topics_add_entry = tk.Entry(self, textvariable=self.topics_add_var)
+        self.topics_add_entry = ttk.Combobox(self, textvariable=self.topics_add_var, 
+                values=self._get_all_topics(), postcommand=self._filter_topics)
         self.topics_add_entry.bind("<Return>", self._add_topic)
-        self.topics_add_button = tk.Button(self, text='Add', command=self._add_topic)
+        self.topics_add_entry.bind("<<ComboboxSelected>>", self._select_topic)
         self.topics_add_entry.grid(row=3, column=0, sticky=tk.N+tk.E+tk.W)
-        self.topics_add_button.grid(row=3, column=1, sticky=tk.W)
 
         self.rowconfigure(2, weight=1)
         self.columnconfigure(0, weight=1)
@@ -131,6 +142,18 @@ class RosbagRecorderConfigFrame(tk.LabelFrame, object):
         self.topics_listbox.selection_set(tk.END)
         self.topics_listbox.see(tk.END)
 
+    def _select_topic(self, _=None):
+        self.topics_add_entry.set(self.topics_add_entry.get())
+
+    def _filter_topics(self):
+        vals = [ topic for topic in self._get_all_topics() if topic.startswith(self.topics_add_var.get())]
+        self.topics_add_entry.configure(values=vals)
+
+    def _get_all_topics(self):
+        # TODO: cache?
+        self._all_topics = sorted(set(topic for topic, _ in rospy.get_published_topics()))
+        return self._all_topics
+
     def get_config(self):
         return { ROSBAG_RECORDER_CONFIG_NAME: {
             'enabled': self.enabled_var.get(),
@@ -141,7 +164,7 @@ class RosbagRecorderConfigFrame(tk.LabelFrame, object):
         self.enabled_checkbox.configure(state=state)
         self.topics_listbox.configure(state=state)
         self.topics_add_entry.configure(state=state)
-        self.topics_add_button.configure(state=state)
+        # self.topics_add_button.configure(state=state)
 
 
 def get_rosbag_recorder(log_dir, config):
