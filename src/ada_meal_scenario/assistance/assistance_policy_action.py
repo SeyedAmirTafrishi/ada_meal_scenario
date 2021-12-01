@@ -186,9 +186,9 @@ def move_to_goal(prev_result, config, status_cb, goal_idx=None):
 
     env = config['env']
     robot = config['robot']
-    with DisableCollision([env.GetKinBody(true_goal.name)]):
-        path = robot.PlanToEndEffectorPose(true_goal.target_poses[0])
-        traj = robot.PostProcessPath(path)
+    # with DisableCollision([env.GetKinBody(true_goal.name)]):
+    path = robot.PlanToEndEffectorPose(true_goal.target_poses[0])
+    traj = robot.PostProcessPath(path)
 
     # TODO: make the normal one log like this too
     @futurize(blocking=True)
