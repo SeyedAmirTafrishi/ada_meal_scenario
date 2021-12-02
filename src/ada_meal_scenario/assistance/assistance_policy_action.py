@@ -174,42 +174,17 @@ def move_to_goal(prev_result, config, status_cb, goal_idx=None):
     goals = prev_result
     if len(goals) == 0:
         raise RuntimeError('No valid goals detected for autonomous motion')
-    # collect async loggers
-    # AdaHandler handles logging its own data in-thread
-    # but loggers that just need to start and stop are passed as separate objects
-    loggers = get_loggers(goals, config)
 
     if goal_idx is None:
         goal_idx = np.random.randint(len(goals))
     true_goal = goals[goal_idx]
     status_cb('Autonomously going to goal {} ({})'.format(goal_idx, true_goal.name))
 
-    env = config['env']
     robot = config['robot']
-    # with DisableCollision([env.GetKinBody(true_goal.name)]):
     path = robot.PlanToEndEffectorPose(true_goal.target_poses[0])
     traj = robot.PostProcessPath(path)
 
-    # TODO: make the normal one log like this too
-    @futurize(blocking=True)
-    def start_logging(*args, **kwargs):
-        print('starting log')
-        for logger in loggers:
-            logger.start()
-
-    @futurize(blocking=True)
-    def stop_logging(*args, **kwargs):
-        print('stopping log')
-        for logger in loggers:
-            logger.stop()
-
-    return ActionSequenceFactory(
-        ).then(start_logging
-        ).then(create_trajectory_action(traj)
-        ).then(stop_logging
-        ).then(Wait.factory(interrupt=True)
-        ).then(NoOp.factory(result=goals)
-        ).run(prev_result, config, status_cb)
+    return create_trajectory_action(traj)
 
 def run_direct_teleop(prev_result, config, status_cb):
     status_cb('Starting direct teleop')
@@ -219,23 +194,55 @@ def run_direct_teleop(prev_result, config, status_cb):
     cfg = cfg._replace(direct_teleop_only=True, pick_goal=False)
     return AdaHandler(config['env'], config['robot'], cfg, loggers)
 
-def run_assistance_on_goals(prev_result, config, status_cb):
-    if is_autonomous(config):
-        return move_to_goal(prev_result, config, status_cb)
-    else:
-        status_cb('Starting trial')
-        goals = prev_result
-        return AdaHandler(
-            config['env'], config['robot'],
-            AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
-            get_loggers(goals, config))
+def make_run_assistance_on_goals(auto_plan_fn=move_to_goal):
 
-def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position, check_ik=True):
+    def run_assistance_on_goals(prev_result, config, status_cb):
+
+        if is_autonomous(config):
+            goals = prev_result
+            loggers = get_loggers(goals, config)
+
+            @futurize(blocking=True)
+            def start_logging(*args, **kwargs):
+                print('starting log')
+                for logger in loggers:
+                    logger.start()
+
+            @futurize(blocking=True)
+            def stop_logging(*args, **kwargs):
+                print('stopping log')
+                for logger in loggers:
+                    logger.stop()
+
+            # pass goals into the auto_plan_fn even through start_logging
+            # other way would be to have start_logging pass the prev_result through cleanly
+            # they're both kinda hacky so idk
+            def run_auto(prev_result, *args, **kwargs):
+                return auto_plan_fn(goals, *args, **kwargs)
+
+            return ActionSequenceFactory(
+                ).then(start_logging
+                ).then(run_auto
+                ).then(stop_logging
+                ).then(Wait.factory(interrupt=True)
+                ).then(NoOp.factory(result=goals)
+                ).run(prev_result, config, status_cb)
+        else:
+            status_cb('Starting trial')
+            goals = prev_result
+            return AdaHandler(
+                config['env'], config['robot'],
+                AdaHandlerConfig.create(goals=goals, log_dir=get_log_dir(config), **get_ada_handler_config(config)),
+                get_loggers(goals, config))
+
+    return run_assistance_on_goals
+
+def make_goal_filter_with_assistance(get_robot_pos_fn=get_prestab_position, auto_plan_fn=move_to_goal, check_ik=True):
     actions = ActionSequenceFactory(
         ).then(make_goal_builder(get_robot_pos_fn))
     if check_ik:
         actions.then(make_async_mapper(check_ik_for_goal)
         ).then(filter_goals)
-    actions.then(run_assistance_on_goals)
+    actions.then(make_run_assistance_on_goals(auto_plan_fn))
     return actions
 
